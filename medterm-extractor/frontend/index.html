@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Medical Term Extractor — Aho-Corasick</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="brand">
+      <img class="brand-mark" src="logoo.png" alt="Medical Term Extractor logo" />
+      <div class="brand-text">
+        <span class="brand-title">Medical Term Extractor</span>
+        <span class="brand-sub">Aho–Corasick for handwritten prescriptions</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="app-shell">
+    <aside class="side-menu">
+      <nav class="side-nav" role="tablist" aria-label="Algorithm mode and pages">
+        <div class="side-group">
+          <button class="side-item mode-item active" data-mode="original" role="tab" aria-selected="true">
+            <span class="side-dot"></span>
+            <span class="side-label">Existing algorithm</span>
+          </button>
+          <button class="side-item mode-item" data-mode="enhanced" role="tab" aria-selected="false">
+            <span class="side-dot"></span>
+            <span class="side-label">Enhanced Algorithm</span>
+          </button>
+        </div>
+
+        <div class="side-group">
+          <a class="side-item" href="sop1/index.html">
+            <span class="side-dot"></span>
+            <span class="side-label">SOP 1</span>
+          </a>
+          <a class="side-item" href="sop2/index.html">
+            <span class="side-dot"></span>
+            <span class="side-label">SOP 2</span>
+          </a>
+          <a class="side-item" href="sop3/index.html">
+            <span class="side-dot"></span>
+            <span class="side-label">SOP 3</span>
+          </a>
+        </div>
+
+        <div class="side-group">
+          <a class="side-item" href="history/index.html">
+            <span class="side-dot"></span>
+            <span class="side-label">History</span>
+          </a>
+        </div>
+      </nav>
+    </aside>
+
+    <div class="main-col">
+      <main class="layout">
+
+    <p class="mode-caption" id="modeCaption">
+      Running the <strong>baseline Aho-Corasick</strong> automaton — exact matching only, no context awareness, no fuzzy matching, no abbreviation lookup.
+    </p>
+
+    <section class="panels">
+      <!-- LEFT: upload -->
+      <div class="card">
+        <h2 class="card-title">Upload Prescription</h2>
+
+        <label class="dropzone" id="dropzone" for="fileInput">
+          <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" hidden />
+          <div class="dropzone-icon">🖼</div>
+          <div class="dropzone-title" id="dropzoneTitle">Choose or drop an image</div>
+          <div class="dropzone-sub">JPG, PNG, WEBP supported</div>
+          <img id="previewImg" class="preview-img" alt="Prescription preview" hidden />
+        </label>
+
+        <button class="btn btn-secondary" id="scanBtn" disabled>
+          <span class="spinner" id="scanSpinner" hidden></span>
+          <span id="scanBtnLabel">Scan &amp; Extract</span>
+        </button>
+      </div>
+
+      <!-- RIGHT: extracted text -->
+      <div class="card">
+        <div class="card-title-row">
+          <h2 class="card-title">Extracted Text from Medical Prescription</h2>
+          <span class="hint">— or type manually below</span>
+        </div>
+
+        <textarea id="textInput" class="text-input"
+          placeholder="Type or paste prescription text here, or scan an image…"></textarea>
+
+        <button class="btn btn-primary" id="evaluateBtn">
+          <span class="spinner" id="evalSpinner" hidden></span>
+          <span id="evalBtnLabel">↻ Re-evaluate</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- RESULTS -->
+    <section class="results-card" id="resultsCard">
+      <div id="resultsContent" hidden>
+        <div class="results-header">
+          <h2 class="card-title">Analysis Results</h2>
+          <span class="badge" id="resultModeBadge">ORIGINAL</span>
+        </div>
+
+        <div class="highlighted-text" id="highlightedText"></div>
+
+        <div class="results-grid">
+          <div class="results-col">
+            <h3 class="results-subtitle">Identified Medical Terms</h3>
+            <table class="terms-table" id="termsTable">
+              <thead>
+                <tr>
+                  <th>Term</th>
+                  <th>Category</th>
+                  <th id="confidenceHeader" hidden>Confidence</th>
+                  <th id="scoreHeader" hidden>Score</th>
+                </tr>
+              </thead>
+              <tbody id="termsTableBody"></tbody>
+            </table>
+            <p class="no-terms" id="noTermsMsg" hidden>No medical terms matched.</p>
+          </div>
+
+          <div class="results-col" id="abbrevCol" hidden>
+            <h3 class="results-subtitle">Abbreviations & Symbols Panel</h3>
+            <ul class="abbrev-list" id="abbrevList"></ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="error-banner" id="errorBanner" hidden></p>
+
+      </main>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

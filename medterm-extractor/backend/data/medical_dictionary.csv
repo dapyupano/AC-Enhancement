@@ -1,0 +1,345 @@
+term,category,meaning
+BIOGESIC,Drug,
+PARACETAMOL,Drug,
+AMOXICILLIN,Drug,
+AMOXICILLIN CLAVULANATE,Drug,
+CO-AMOXICLAV,Drug,
+CEFALEXIN,Drug,
+CEFIXIME,Drug,
+METRONIDAZOLE,Drug,
+CIPROFLOXACIN,Drug,
+AZITHROMYCIN,Drug,
+LOSARTAN,Drug,
+AMLODIPINE,Drug,
+METFORMIN,Drug,
+GLICLAZIDE,Drug,
+OMEPRAZOLE,Drug,
+RANITIDINE,Drug,
+LOPERAMIDE,Drug,
+CETIRIZINE,Drug,
+SALBUTAMOL,Drug,
+IBUPROFEN,Drug,
+MEFENAMIC ACID,Drug,
+ASCORBIC ACID,Drug,
+MULTIVITAMINS,Drug,
+FERROUS SULFATE,Drug,
+HYDROCORTISONE,Drug,
+PREDNISONE,Drug,
+INSULIN,Drug,
+CLINDAMYCIN,Drug,
+DICLOFENAC,Drug,
+TRAMADOL,Drug,
+250MG,Dosage,
+500MG,Dosage,
+MG,Dosage,Milligram
+MCG,Dosage,Microgram
+UG,Dosage,Microgram
+1G,Dosage,
+5MG,Dosage,
+10MG,Dosage,
+20MG,Dosage,
+50MG,Dosage,
+100MG,Dosage,
+ML,Dosage,Millilitre
+1 TAB,Dosage,
+2 TABS,Dosage,
+1 TSP,Dosage,
+5ML,Dosage,
+10ML,Dosage,
+1 CAP,Dosage,
+1 VIAL,Dosage,
+1 AMPULE,Dosage,
+OD,Abbreviation,Once a day
+BID,Abbreviation,Twice a day
+TID,Abbreviation,Three times a day
+QID,Abbreviation,Four times a day
+1X,Abbreviation,Once daily
+2X,Abbreviation,Twice daily
+3X,Abbreviation,Three times daily
+4X,Abbreviation,Four times daily
+1-1-1,Symbol,Morning-Afternoon-Night; take 1 tablet three times a day
+1-0-1,Symbol,Twice daily
+1-0-0,Symbol,Once daily
+0-1-1,Symbol,Afternoon-Night; take 1 tablet twice a day
+0-1-0,Symbol,Afternoon; take 1 tablet once daily
+0-0-1,Symbol,Night; take 1 tablet once daily
+1-1-0,Symbol,Morning-Afternoon; take 1 tablet twice a day
+0-0-0,Symbol,Do not take
+#,Symbol,Total quantity to dispense
+-,Symbol,Take 1 tablet before/after meal/s
+•,Symbol,Take 1 tablet before/after meal/s
+—,Symbol,Take 1 tablet before/after meal/s
+C̄,Symbol,Take with food
+S̄,Symbol,Take on an empty stomach
+SS̄,Symbol,Half tablet
+Ā,Symbol,Before
+P̄,Symbol,After
+PRN,Abbreviation,As needed
+HS,Abbreviation,At bedtime
+AC,Abbreviation,Before meals
+PC,Abbreviation,After meals
+Q4H,Abbreviation,Every 4 hours
+Q6H,Abbreviation,Every 6 hours
+Q8H,Abbreviation,Every 8 hours
+Q12H,Abbreviation,Every 12 hours
+STAT,Abbreviation,Immediately
+NPO,Abbreviation,Nothing by mouth
+IM,Abbreviation,Intramuscular
+IV,Abbreviation,Intravenous
+PO,Abbreviation,By mouth
+SL,Abbreviation,Sublingual
+SC,Abbreviation,Subcutaneous
+TAB,Abbreviation,Tablet
+CAP,Abbreviation,Capsule
+SYP,Abbreviation,Syrup
+DAW,Abbreviation,Dispense as written
+FEVER,Treatment,
+COUGH,Treatment,
+COLD,Treatment,
+HYPERTENSION,Treatment,
+DIABETES,Treatment,
+INFECTION,Treatment,
+ASTHMA,Treatment,
+ALLERGY,Treatment,
+PAIN,Treatment,
+DIARRHEA,Treatment,
+GASTRITIS,Treatment,
+UTI,Treatment,
+PNEUMONIA,Treatment,
+NAUSEA,Treatment,
+INFLAMMATION,Treatment,
+ANEMIA,Treatment,
+IMOFLOX,Drug,
+DOLCET,Drug,
+CEFUROXIME,Drug,
+CEFUREX,Drug,
+CELECOXIB,Drug,
+AUBREX,Drug,
+AMOXIL,Drug,
+HIMOX,Drug,
+PONSTAN,Drug,
+DOMPERIDONE,Drug,
+HYOSCINE,Drug,
+LAGUNDI,Drug,
+SAMBONG,Drug,
+VITAMIN C,Drug,
+FLAGYL,Drug,
+DEXAMETHASONE,Drug,
+COTRIMOXAZOLE,Drug,
+CEPHALEXIN,Drug,
+ERYTHROMYCIN,Drug,
+AMOXICILLIN-CLAVULANATE,Drug,
+SULFAMETHOXAZOLE,Drug,
+TRIMETHOPRIM,Drug,
+AUGMENTIN,Drug,
+CURAM,Drug,
+CLAVAM,Drug,
+TEMPRA,Drug,
+CALPOL,Drug,
+DOLFENAL,Drug,
+ADVIL,Drug,
+MEDICOL,Drug,
+ALAXAN,Drug,
+SOLMUX,Drug,
+CARBOCISTEINE,Drug,
+ASCOF,Drug,
+DIATABS,Drug,
+LOPERAMIDE HCL,Drug,
+LOSARTAN POTASSIUM,Drug,
+AMLODIPINE BESYLATE,Drug,
+METFORMIN HYDROCHLORIDE,Drug,
+ATORVASTATIN,Drug,
+SIMVASTATIN,Drug,
+OMEPRAZOLE SODIUM,Drug,
+PANTOPRAZOLE,Drug,
+CETIRIZINE HYDROCHLORIDE,Drug,
+LORATADINE,Drug,
+FEXOFENADINE,Drug,
+SALBUTAMOL SULFATE,Drug,
+IPRATROPIUM,Drug,
+CLONIDINE,Drug,
+NIFEDIPINE,Drug,
+VALSARTAN,Drug,
+GLIBENCLAMIDE,Drug,
+GLIMEPIRIDE,Drug,
+FOLIC ACID,Drug,
+VITAMIN B COMPLEX,Drug,
+B-COMPLEX,Drug,
+200MG,Dosage,
+400MG,Dosage,
+1000MG,Dosage,
+2 CAPS,Dosage,
+2 TABLETS,Dosage,
+1 CAPSULE,Dosage,
+2 CAPSULES,Dosage,
+15ML,Dosage,
+500MG/TAB,Dosage,
+250MG/TAB,Dosage,
+500MG/CAP,Dosage,
+250MG/CAP,Dosage,
+200MG/CAP,Dosage,
+200MG/TAB,Dosage,
+ONCE A DAY,Frequency,
+TWICE A DAY,Frequency,
+THREE TIMES A DAY,Frequency,
+3X A DAY,Frequency,
+3X DAILY,Frequency,
+TWICE DAILY,Frequency,
+ONCE DAILY,Frequency,
+EVERY 8 HOURS,Frequency,
+EVERY 6 HOURS,Frequency,
+EVERY 12 HOURS,Frequency,
+EVERY DAY,Frequency,
+AS NEEDED,Frequency,
+AT BEDTIME,Frequency,
+BEFORE MEALS,Frequency,
+AFTER MEALS,Frequency,
+WITH MEALS,Frequency,
+AS NEEDED FOR PAIN,Frequency,
+FOR 7 DAYS,Frequency,
+FOR 5 DAYS,Frequency,
+FOR 3 DAYS,Frequency,
+SEVEN DAYS,Frequency,
+5 DAYS,Frequency,
+7 DAYS,Frequency,
+10 DAYS,Frequency,
+14 DAYS,Frequency,
+HTN,Abbreviation,Hypertension
+DM,Abbreviation,Diabetes mellitus
+URTI,Abbreviation,Upper respiratory tract infection
+BP,Abbreviation,Blood pressure
+HR,Abbreviation,Heart rate
+RR,Abbreviation,Respiratory rate
+CC,Abbreviation,Chief complaint
+HPI,Abbreviation,History of present illness
+PNDF,Abbreviation,Philippine National Drug Formulary
+DOH,Abbreviation,Department of Health
+PHIC,Abbreviation,Philhealth Insurance Corporation
+ORS,Abbreviation,Oral rehydration solution
+NDC,Abbreviation,National drug code
+RHU,Abbreviation,Rural health unit
+CHD,Abbreviation,Center for Health Development
+SQ,Abbreviation,Subcutaneous
+CBR,Abbreviation,Complete bed rest
+MBR,Abbreviation,Modified bed rest
+MDR,Abbreviation,Multi-drug resistant
+DOTS,Abbreviation,Directly observed treatment short-course
+TB,Abbreviation,Tuberculosis
+FPG,Abbreviation,Fasting plasma glucose
+RBS,Abbreviation,Random blood sugar
+CBC,Abbreviation,Complete blood count
+UA,Abbreviation,Urinalysis
+PT,Abbreviation,Patient
+COLD COMPRESS,Treatment,
+WARM COMPRESS,Treatment,
+HOT COMPRESS,Treatment,
+ICE PACK,Treatment,
+NEBULIZATION,Treatment,
+BED REST,Treatment,
+WOUND DRESSING,Treatment,
+SALINE GARGLE,Treatment,
+ORAL REHYDRATION THERAPY,Treatment,
+STEAM INHALATION,Treatment,
+SITZ BATH,Treatment,
+SPLINT,Treatment,
+ELEVATION,Treatment,
+PHYSICAL THERAPY,Treatment,
+FOLLOW UP,Treatment,
+REFERRAL,Treatment,
+1X A DAY,Frequency,
+2X A DAY,Frequency,
+4X A DAY,Frequency,
+1-1-1,Symbol,Morning-Afternoon-Night; take 1 tablet three times a day
+QD,Abbreviation,Once daily
+BD,Abbreviation,Twice daily
+TDS,Abbreviation,Three times daily
+QDS,Abbreviation,Four times daily
+QHS,Abbreviation,At bedtime
+SOS,Abbreviation,If needed (once only)
+NOCTE,Abbreviation,At night
+MANE,Abbreviation,In the morning
+AD LIB,Abbreviation,As desired / freely
+PR,Abbreviation,Per rectum
+PV,Abbreviation,Per vaginum
+ID,Abbreviation,Intradermal
+TOP,Abbreviation,Topical / external use
+EXT,Abbreviation,Topical / external use
+INJ,Abbreviation,Injection
+NGT,Abbreviation,Nasogastric tube
+ET,Abbreviation,Endotracheal
+SYR,Abbreviation,Syrup
+SUSP,Abbreviation,Suspension
+SUPP,Abbreviation,Suppository
+OINT,Abbreviation,Ointment
+SOL,Abbreviation,Solution
+GTT,Abbreviation,Drops
+AMP,Abbreviation,Ampule
+VIAL,Abbreviation,Small sealed drug container
+ELIX,Abbreviation,Elixir
+PATCH,Abbreviation,Transdermal patch
+TD,Abbreviation,Transdermal patch
+TEMP,Abbreviation,Temperature
+SPO2,Abbreviation,Oxygen saturation
+BMI,Abbreviation,Body mass index
+I/O,Abbreviation,Intake/Output
+T1DM,Abbreviation,Type 1 diabetes mellitus
+T2DM,Abbreviation,Type 2 diabetes mellitus
+CAD,Abbreviation,Coronary artery disease
+CHF,Abbreviation,Congestive heart failure
+COPD,Abbreviation,Chronic obstructive pulmonary disease
+CKD,Abbreviation,Chronic kidney disease
+URI,Abbreviation,Upper respiratory infection
+GERD,Abbreviation,Gastroesophageal reflux disease
+AKI,Abbreviation,Acute kidney injury
+MI,Abbreviation,Myocardial infarction
+CVA,Abbreviation,Cerebrovascular accident (stroke)
+DVT,Abbreviation,Deep vein thrombosis
+PE,Abbreviation,Pulmonary embolism
+PNA,Abbreviation,Pneumonia
+FBS,Abbreviation,Fasting blood sugar
+LFT,Abbreviation,Liver function test
+RFT,Abbreviation,Renal/kidney function test
+KFT,Abbreviation,Renal/kidney function test
+ECG,Abbreviation,Electrocardiogram
+EKG,Abbreviation,Electrocardiogram
+CXR,Abbreviation,Chest X-ray
+USG,Abbreviation,Ultrasonography
+ABG,Abbreviation,Arterial blood gas
+ESR,Abbreviation,Erythrocyte sedimentation rate
+CRP,Abbreviation,C-reactive protein
+INR,Abbreviation,International normalized ratio
+SX,Abbreviation,Symptoms
+TX,Abbreviation,Treatment
+FX,Abbreviation,Fracture
+PMH,Abbreviation,Past medical history
+FH,Abbreviation,Family history
+SH,Abbreviation,Social history
+O/E,Abbreviation,On examination
+C/O,Abbreviation,Complains of
+NAD,Abbreviation,No abnormality detected
+WNL,Abbreviation,Within normal limits
+F/U,Abbreviation,Follow-up
+WT,Abbreviation,Weight
+HT,Abbreviation,Height
+D/C,Abbreviation,"Discharge (or discontinue -- ambiguous, flagged by ISMP)"
+ADV,Abbreviation,Advised
+BERA,Abbreviation,Brainstem Evoked Response Audiometry
+OAE,Abbreviation,Otoacoustic Emissions
+CT,Abbreviation,Computed Tomography
+MRI,Abbreviation,Magnetic Resonance Imaging
+HX,Abbreviation,History
+DX,Abbreviation,Diagnosis
+RX,Abbreviation,Prescription
+PSH,Abbreviation,Past surgical history
+REF,Abbreviation,Referred
+OPD,Abbreviation,Outpatient department
+IPD,Abbreviation,Inpatient department
+ER,Abbreviation,Emergency room/department
+ED,Abbreviation,Emergency room/department
+NKDA,Abbreviation,No known drug allergies
+NKA,Abbreviation,No known allergies
+S/P,Abbreviation,Status post
+LMP,Abbreviation,Last menstrual period
+AOG,Abbreviation,Age of gestation / Gestational age
+GA,Abbreviation,Age of gestation / Gestational age
+UTI,Abbreviation,Urinary tract infection

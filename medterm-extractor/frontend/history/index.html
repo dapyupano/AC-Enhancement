@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>History — Medical Term Extractor</title>
+<link rel="stylesheet" href="../style.css" />
+<style>
+  .history-layout {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 24px 24px 60px;
+  }
+  .history-back {
+    display: inline-block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--blue);
+    text-decoration: none;
+    margin-bottom: 16px;
+  }
+  .history-back:hover { text-decoration: underline; }
+  .history-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .history-title { font-size: 20px; font-weight: 700; margin: 0; }
+  .btn-clear {
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--danger);
+    font-size: 12px;
+    font-weight: 700;
+    padding: 8px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .btn-clear:hover { background: #fdecec; }
+  .history-empty {
+    color: var(--muted);
+    font-size: 14px;
+    background: var(--panel);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 32px;
+    text-align: center;
+  }
+  .history-item {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    margin-bottom: 12px;
+  }
+  .history-item-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+  .history-time { font-size: 12px; color: var(--muted); }
+  .history-badge {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 999px;
+    color: #fff;
+    background: var(--blue);
+  }
+  .history-badge.enhanced { background: var(--teal); }
+  .history-text {
+    font-size: 13px;
+    color: var(--text);
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 10px 12px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin: 0 0 10px;
+  }
+  .history-terms {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .history-term-pill {
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 3px 10px;
+  }
+  .history-count { font-size: 12px; color: var(--muted); margin-left: 8px; }
+</style>
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="brand">
+      <img class="brand-mark" src="../logoo.png" alt="Medical Term Extractor logo" />
+      <div class="brand-text">
+        <span class="brand-title">Medical Term Extractor</span>
+        <span class="brand-sub">Aho–Corasick for handwritten prescriptions</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="app-shell">
+    <aside class="side-menu">
+      <nav class="side-nav" role="tablist" aria-label="Algorithm mode and pages">
+        <div class="side-group">
+          <a class="side-item" href="../index.html">
+            <span class="side-dot"></span>
+            <span class="side-label">Existing algorithm</span>
+          </a>
+          <a class="side-item" href="../index.html">
+            <span class="side-dot"></span>
+            <span class="side-label">Enhanced Algorithm</span>
+          </a>
+        </div>
+
+        <div class="side-group">
+          <a class="side-item" href="../sop1/index.html">
+            <span class="side-dot"></span>
+            <span class="side-label">SOP 1</span>
+          </a>
+          <a class="side-item" href="../sop2/index.html">
+            <span class="side-dot"></span>
+            <span class="side-label">SOP 2</span>
+          </a>
+          <a class="side-item" href="../sop3/index.html">
+            <span class="side-dot"></span>
+            <span class="side-label">SOP 3</span>
+          </a>
+        </div>
+
+        <div class="side-group">
+          <a class="side-item active" href="../history/index.html">
+            <span class="side-dot"></span>
+            <span class="side-label">History</span>
+          </a>
+        </div>
+      </nav>
+    </aside>
+
+    <div class="main-col">
+      <main class="history-layout">
+        <div class="history-head">
+          <h1 class="history-title">Scan History</h1>
+          <button class="btn-clear" id="clearBtn">Clear history</button>
+        </div>
+
+        <div id="historyList"></div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    const HISTORY_KEY = "medtermExtractorHistory";
+    const listEl = document.getElementById("historyList");
+    const clearBtn = document.getElementById("clearBtn");
+
+    function loadHistory() {
+      try {
+        return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+      } catch {
+        return [];
+      }
+    }
+
+    function formatTime(iso) {
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return iso;
+      return d.toLocaleString();
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function render() {
+      const entries = loadHistory();
+
+      if (!entries.length) {
+        listEl.innerHTML = `<div class="history-empty">No scans yet. Analyses you run from the main page will show up here.</div>`;
+        return;
+      }
+
+      listEl.innerHTML = entries.map((entry) => {
+        const isEnhanced = entry.mode === "enhanced";
+        const terms = (entry.terms || []).slice(0, 20);
+        const termsHtml = terms.length
+          ? `<div class="history-terms">${terms.map((t) => `<span class="history-term-pill">${escapeHtml(t)}</span>`).join("")}</div>`
+          : `<div class="history-terms"><span class="history-term-pill">No terms matched</span></div>`;
+
+        return `
+          <div class="history-item">
+            <div class="history-item-head">
+              <div>
+                <span class="history-badge ${isEnhanced ? "enhanced" : ""}">${isEnhanced ? "Enhanced" : "Original"}</span>
+                <span class="history-count">${entry.matchCount ?? terms.length} term(s) matched</span>
+              </div>
+              <span class="history-time">${formatTime(entry.timestamp)}</span>
+            </div>
+            <p class="history-text">${escapeHtml(entry.text || "").slice(0, 400)}</p>
+            ${termsHtml}
+          </div>
+        `;
+      }).join("");
+    }
+
+    clearBtn.addEventListener("click", () => {
+      if (confirm("Clear all scan history? This cannot be undone.")) {
+        localStorage.removeItem(HISTORY_KEY);
+        render();
+      }
+    });
+
+    render();
+  </script>
+</body>
+</html>
