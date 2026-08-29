@@ -41,16 +41,269 @@
 <div class="wrap">
   <section class="hero"><h1>SOP 3: Tiered Hot/Cold Transition Storage</h1><div class="sub">Compare the original full-alphabet transition rows with enhanced dense hot states and sparse cold states.</div><div class="controls"><div class="field"><span class="label">Prescription image</span><div class="upload"><input id="image" type="file" accept="image/*"><button id="ocr" class="primary">Extract</button></div><textarea id="prescription" placeholder="Upload an image or type a prescription..."></textarea></div><div class="field"><span class="label">Text to search</span><textarea id="text" placeholder="Filled from the prescription..."></textarea></div><div class="field"><span class="label">Patterns (automatic)</span><textarea id="patterns" placeholder="Filled when Build + Run is clicked..."></textarea></div></div><div class="buttons"><button id="build" class="primary">Build + Run Simulation</button><button id="prev">Prev</button><button id="next">Next</button><button id="play">Play</button><button id="reset">Reset</button></div></section><div class="progress"><span id="bar"></span></div><div class="cmp-layout"><section class="panels"><article class="panel"><div class="head">Original: full alphabet <span class="meta" id="ometa">-</span></div><div class="step" id="ostep">Waiting...</div><div class="canvas"><svg id="osvg"></svg></div></article><article class="panel"><div class="head">Enhanced: hot/cold tiers <span class="meta" id="emeta">-</span></div><div class="step" id="estep">Waiting...</div><div class="canvas"><svg id="esvg"></svg></div></article></section><aside class="side"><section class="status" id="status">Waiting for prescription input.</section><section class="bench-wrap"><div class="bench-title">Comparative Result</div><div class="bench-box" id="result">Build the simulation to compare transition storage.</div></section><section class="bench-wrap"><div class="bench-title">Storage Legend</div><div class="bench-box"><span class="swatch" style="background:#3978a8"></span>Full alphabet / dense<br><span class="swatch" style="background:#176b63"></span>Hot state<br><span class="swatch" style="background:#c65f3d"></span>Cold sparse state</div></section></aside></div><section class="tablewrap"><h2>Detected Patterns and Storage Summary</h2><div class="tablebox"><table><thead><tr><th>State</th><th>Original cells</th><th>Enhanced storage</th><th>Tier</th></tr></thead><tbody id="storage"></tbody></table></div></section></div>
 <script>
-const $=id=>document.getElementById(id),S={nodes:[],text:'',steps:[],i:-1,timer:null};const SIGMA=40,THETA=4;const sharedText=sessionStorage.getItem('medtermExtractorText');if(sharedText){$('prescription').value=sharedText;$('text').value=sharedText;$('status').textContent='Prescription text restored from the main extractor.'}
-function norm(x){return(x||'').toUpperCase().replace(/[^A-Z0-9 .,/()%+:-]/g,' ').replace(/\s+/g,' ').trim()}async function getPatterns(t){const r=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:t,mode:'enhanced'})});const d=await r.json();if(!r.ok)throw Error(d.error||'Pattern discovery failed');return[...new Set((d.matches||[]).map(x=>x.matched_dictionary_term||x.term))]}
-function trie(ps){const n=[{id:0,c:new Map(),d:0}];for(const p of ps){let x=0;for(const ch of p){if(!n[x].c.has(ch)){n[x].c.set(ch,n.length);n.push({id:n.length,c:new Map(),d:n[x].d+1})}x=n[x].c.get(ch)}}return n}
-function draw(svg,n,current,enh){svg.innerHTML='';const w=Math.max(720,n.length*45),h=390;svg.setAttribute('viewBox',`0 0 ${w} ${h}`);const pos=n.map((x,i)=>({x:30+i*43,y:55+(x.d%6)*55}));for(const x of n)for(const id of x.c.values()){const l=document.createElementNS('http://www.w3.org/2000/svg','line');l.setAttribute('x1',pos[x.id].x);l.setAttribute('y1',pos[x.id].y);l.setAttribute('x2',pos[id].x);l.setAttribute('y2',pos[id].y);l.setAttribute('stroke','#c6b9a8');svg.appendChild(l)}for(const x of n){const c=document.createElementNS('http://www.w3.org/2000/svg','circle');c.setAttribute('cx',pos[x.id].x);c.setAttribute('cy',pos[x.id].y);c.setAttribute('r',x.id===current?13:9);c.setAttribute('fill',x.id===current?'#c65f3d':enh?(x.c.size>=THETA?'#176b63':'#f4c7ad'):'#d5e6f1');c.setAttribute('stroke',enh?(x.c.size>=THETA?'#176b63':'#c65f3d'):'#3978a8');svg.appendChild(c);const t=document.createElementNS('http://www.w3.org/2000/svg','text');t.setAttribute('x',pos[x.id].x);t.setAttribute('y',pos[x.id].y+3);t.setAttribute('text-anchor','middle');t.setAttribute('font-size','8');t.textContent=x.id;svg.appendChild(t)}}
-function render(){if(!S.nodes.length)return;const last=S.steps.length-1,x=S.steps[Math.max(0,S.i)]||{ch:'-',o:0,e:0};draw($('osvg'),S.nodes,x.o,false);draw($('esvg'),S.nodes,x.e,true);$('ostep').textContent=`step ${Math.max(0,S.i+1)}/${S.steps.length} | char=${x.ch} | full alphabet row`;$('estep').textContent=`step ${Math.max(0,S.i+1)}/${S.steps.length} | char=${x.ch} | ${S.nodes[x.e].c.size>=THETA?'hot dense':'cold sparse'} row`;$('bar').style.width=`${S.i>=last?100:Math.max(0,(S.i+1)/S.steps.length*100)}%`;if(S.i>=last)$('status').textContent='Traversal complete. Storage comparison is ready.'}
-function play(){clearInterval(S.timer);$('play').textContent='Pause';S.timer=setInterval(()=>{if(S.i>=S.steps.length-1){clearInterval(S.timer);$('play').textContent='Play';render();return}S.i++;render()},500)}
-$('build').onclick=async()=>{clearInterval(S.timer);const text=norm($('text').value||$('prescription').value);if(!text)return $('status').textContent='Provide prescription text first.';try{const ps=await getPatterns(text);if(!ps.length)return $('status').textContent='No dictionary patterns found.';$('patterns').value=ps.join(', ');S.text=text;S.nodes=trie(ps);S.steps=[...text].map((ch,i)=>({ch,o:i%S.nodes.length,e:(i*3)%S.nodes.length}));S.i=-1;const hot=S.nodes.filter(n=>n.c.size>=THETA).length,cold=S.nodes.length-hot;$('ometa').textContent=`nodes=${S.nodes.length} | ${S.nodes.length*SIGMA} cells`;$('emeta').textContent=`hot=${hot} | cold=${cold}`;$('result').textContent=`Patterns used: ${ps.length}\nOriginal storage: ${S.nodes.length*SIGMA} full-alphabet cells\nEnhanced storage: ${hot*SIGMA} hot dense cells + ${cold} cold sparse maps\nHot threshold: ${THETA} outgoing transitions\nSearch text length: ${text.length}`;$('storage').innerHTML=S.nodes.map((n,i)=>`<tr><td>S${i}</td><td>${SIGMA}</td><td>${n.c.size>=THETA?SIGMA:n.c.size}</td><td>${n.c.size>=THETA?'HOT':'COLD'}</td></tr>`).join('');$('status').textContent='Automaton built. Simulation is running; result appears after the final step.';render();play()}catch(e){$('status').textContent=e.message}};
-$('ocr').onclick=async()=>{const f=$('image').files[0];if(!f)return $('status').textContent='Choose an image first.';const fd=new FormData();fd.append('image',f);$('ocr').disabled=true;$('status').textContent='Extracting prescription text...';try{const r=await fetch('/api/ocr',{method:'POST',body:fd}),d=await r.json();if(!r.ok)throw Error(d.error||'OCR failed');$('prescription').value=d.text||'';$('text').value=d.text||'';$('status').textContent='Image text loaded. Build the simulation.'}catch(e){$('status').textContent=e.message}finally{$('ocr').disabled=false}};
-$('prev').onclick=()=>{clearInterval(S.timer);S.i=Math.max(-1,S.i-1);render()};$('next').onclick=()=>{clearInterval(S.timer);S.i=Math.min(S.steps.length-1,S.i+1);render()};$('play').onclick=()=>S.timer?(clearInterval(S.timer),$('play').textContent='Play'):play();$('reset').onclick=()=>{clearInterval(S.timer);S.i=-1;S.resultText='';$('result').textContent='Simulation reset. Comparative result will appear after the final step.';$('play').textContent='Play';render()};
-const originalBuild=$('build').onclick;$('build').onclick=async()=>{await originalBuild();if(!S.nodes.length)return;const baselineStorage=S.nodes.length*SIGMA,hot=S.nodes.filter(n=>n.c.size>=THETA).length,cold=S.nodes.length-hot,enhancedStorage=hot*SIGMA+cold,saved=baselineStorage-enhancedStorage,percent=baselineStorage?((saved/baselineStorage)*100).toFixed(1):'0.0';S.resultText=`Patterns used: ${S.patterns.length}\nBaseline total: ${baselineStorage} cells\nEnhanced total: ${enhancedStorage} cells\nEnhanced saves: ${saved} cells (${percent}% reduction)`;$('result').textContent='Simulation running. Comparative result will appear after the final step.';};const originalRender=render;render=()=>{originalRender();if(S.nodes.length&&S.i>=S.steps.length-1&&S.resultText)$('result').textContent=S.resultText;};
+const $ = id => document.getElementById(id);
+const S = { nodes: [], text: '', steps: [], i: 0, timer: null, metrics: null };
+const SIGMA = 40;
+const THETA = 4;
+const sharedText = sessionStorage.getItem('medtermExtractorText');
+if (sharedText) {
+  $('prescription').value = sharedText;
+  $('text').value = sharedText;
+  $('status').textContent = 'Prescription text restored from the main extractor.';
+}
+
+function norm(x) {
+  return (x || '').toUpperCase().replace(/[^A-Z0-9 .,/()%+:-]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+async function getPatterns(text) {
+  const response = await fetch('/api/analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, mode: 'enhanced' })
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Pattern discovery failed.');
+  return [...new Set((data.matches || []).map(m => m.matched_dictionary_term || m.term).filter(Boolean))];
+}
+
+function buildTrie(patterns) {
+  const nodes = [{ id: 0, depth: 0, children: new Map(), output: [] }];
+  for (const pattern of patterns) {
+    let current = 0;
+    for (const ch of pattern) {
+      if (!nodes[current].children.has(ch)) {
+        const nextId = nodes.length;
+        nodes.push({ id: nextId, depth: nodes[current].depth + 1, children: new Map(), output: [] });
+        nodes[current].children.set(ch, nextId);
+      }
+      current = nodes[current].children.get(ch);
+    }
+    nodes[current].output.push(pattern);
+  }
+  return nodes;
+}
+
+function computeStorageSummary(trieNodes) {
+  const totalStates = trieNodes.length;
+  const hotStates = trieNodes.filter(node => node.children.size >= THETA).length;
+  const coldStates = totalStates - hotStates;
+  const baselineStorage = totalStates * SIGMA;
+  const hotDenseStorage = hotStates * SIGMA;
+  const coldSparseStorage = trieNodes.filter(node => node.children.size < THETA).reduce((sum, node) => sum + node.children.size, 0);
+  const enhancedStorage = hotDenseStorage + coldSparseStorage;
+  const saved = baselineStorage - enhancedStorage;
+  const savedPercent = baselineStorage ? (saved / baselineStorage) * 100 : 0;
+
+  return {
+    totalStates,
+    hotStates,
+    coldStates,
+    baselineStorage,
+    hotDenseStorage,
+    coldSparseStorage,
+    enhancedStorage,
+    saved,
+    savedPercent
+  };
+}
+
+function drawNodeGraph(svg, trieNodes, currentId, highlightHot) {
+  svg.innerHTML = '';
+  const width = Math.max(720, trieNodes.length * 50);
+  const height = 390;
+  svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+
+  const pos = new Map();
+  const layers = new Map();
+  trieNodes.forEach(node => {
+    if (!layers.has(node.depth)) layers.set(node.depth, []);
+    layers.get(node.depth).push(node);
+  });
+
+  const maxDepth = Math.max(...[...layers.keys()], 0);
+  [...layers.entries()].sort((a, b) => a[0] - b[0]).forEach(([depth, nodesAtDepth]) => {
+    const x = 40 + (depth / Math.max(1, maxDepth)) * (width - 120);
+    const startY = 60;
+    const step = nodesAtDepth.length > 1 ? (height - 120) / (nodesAtDepth.length - 1) : 0;
+    nodesAtDepth.forEach((node, idx) => {
+      pos.set(node.id, { x, y: startY + idx * step });
+    });
+  });
+
+  for (const node of trieNodes) {
+    for (const childId of node.children.values()) {
+      const from = pos.get(node.id);
+      const to = pos.get(childId);
+      if (!from || !to) continue;
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', from.x);
+      line.setAttribute('y1', from.y);
+      line.setAttribute('x2', to.x);
+      line.setAttribute('y2', to.y);
+      line.setAttribute('stroke', '#ccbca0');
+      line.setAttribute('stroke-width', '1.3');
+      svg.appendChild(line);
+    }
+  }
+
+  for (const node of trieNodes) {
+    const p = pos.get(node.id);
+    const isCurrent = node.id === currentId;
+    const isHot = node.children.size >= THETA;
+    const fill = isCurrent ? '#c65f3d' : (highlightHot ? (isHot ? '#176b63' : '#f5c7ae') : '#dfeaf5');
+    const stroke = isCurrent ? '#8b3d2a' : (highlightHot ? (isHot ? '#176b63' : '#c65f3d') : '#3978a8');
+
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('cx', p.x);
+    circle.setAttribute('cy', p.y);
+    circle.setAttribute('r', isCurrent ? 13 : 10);
+    circle.setAttribute('fill', fill);
+    circle.setAttribute('stroke', stroke);
+    circle.setAttribute('stroke-width', '1.8');
+    svg.appendChild(circle);
+
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', p.x);
+    text.setAttribute('y', p.y + 3);
+    text.setAttribute('font-size', '8');
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('fill', '#1a1a1a');
+    text.setAttribute('font-family', 'IBM Plex Mono');
+    text.textContent = String(node.id);
+    svg.appendChild(text);
+  }
+}
+
+function render() {
+  if (!S.nodes.length) return;
+  const step = S.steps[Math.max(0, Math.min(S.i, S.steps.length - 1))] || { char: '-', original: 0, enhanced: 0 };
+  drawNodeGraph($('osvg'), S.nodes, step.original, false);
+  drawNodeGraph($('esvg'), S.nodes, step.enhanced, true);
+  $('ostep').textContent = `step ${Math.max(0, S.i + 1)}/${S.steps.length} | char=${step.char} | full row`;
+  $('estep').textContent = `step ${Math.max(0, S.i + 1)}/${S.steps.length} | char=${step.char} | ${S.nodes[step.enhanced].children.size >= THETA ? 'hot dense row' : 'cold sparse row'}`;
+  $('bar').style.width = `${Math.min(100, (S.i + 1) / Math.max(1, S.steps.length) * 100)}%`;
+
+  if (S.metrics) {
+    $('ometa').textContent = `baseline=${S.metrics.baselineStorage} cells`;
+    $('emeta').textContent = `hot=${S.metrics.hotStates} | cold=${S.metrics.coldStates} | saved=${S.metrics.saved.toFixed(0)} cells`;
+    $('result').textContent = [
+      `Baseline full-row storage: ${S.metrics.baselineStorage} cells`,
+      `Enhanced hot-row storage: ${S.metrics.hotDenseStorage} cells`,
+      `Enhanced cold sparse storage: ${S.metrics.coldSparseStorage} cells`,
+      `Enhanced total storage: ${S.metrics.enhancedStorage} cells`,
+      `Storage saved: ${S.metrics.saved.toFixed(0)} cells (${S.metrics.savedPercent.toFixed(1)}%)`,
+      `Hot states: ${S.metrics.hotStates}, cold states: ${S.metrics.coldStates}`
+    ].join('\n');
+  }
+}
+
+function play() {
+  clearInterval(S.timer);
+  $('play').textContent = 'Pause';
+  S.timer = setInterval(() => {
+    if (S.i >= S.steps.length - 1) {
+      clearInterval(S.timer);
+      $('play').textContent = 'Play';
+      render();
+      return;
+    }
+    S.i += 1;
+    render();
+  }, 500);
+}
+
+$('build').onclick = async () => {
+  clearInterval(S.timer);
+  const text = norm($('text').value || $('prescription').value);
+  if (!text) {
+    $('status').textContent = 'Provide prescription text first.';
+    return;
+  }
+
+  try {
+    const patterns = await getPatterns(text);
+    if (!patterns.length) {
+      $('status').textContent = 'No dictionary patterns found.';
+      return;
+    }
+
+    $('patterns').value = patterns.join(', ');
+    const trieNodes = buildTrie(patterns);
+    const metrics = computeStorageSummary(trieNodes);
+    S.nodes = trieNodes;
+    S.metrics = metrics;
+    S.text = text;
+    S.steps = [...text].map((ch, idx) => ({
+      char: ch,
+      original: idx % Math.max(1, trieNodes.length),
+      enhanced: (idx * 3) % Math.max(1, trieNodes.length)
+    }));
+    S.i = 0;
+
+    $('status').textContent = 'Hot/cold transition storage comparison ready. Dense rows are kept for frequently used states; sparse rows avoid full-alphabet allocation.';
+    render();
+  } catch (err) {
+    $('status').textContent = err.message;
+  }
+};
+
+$('ocr').onclick = async () => {
+  const file = $('image').files[0];
+  if (!file) {
+    $('status').textContent = 'Choose an image first.';
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('image', file);
+  $('ocr').disabled = true;
+  $('status').textContent = 'Extracting prescription text...';
+
+  try {
+    const response = await fetch('/api/ocr', { method: 'POST', body: formData });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'OCR failed.');
+    const extracted = (data.text || '').trim();
+    $('prescription').value = extracted;
+    $('text').value = extracted;
+    $('status').textContent = 'Image text loaded. Build the storage comparison.';
+  } catch (err) {
+    $('status').textContent = err.message;
+  } finally {
+    $('ocr').disabled = false;
+  }
+};
+
+$('prev').onclick = () => {
+  clearInterval(S.timer);
+  S.i = Math.max(0, S.i - 1);
+  render();
+};
+
+$('next').onclick = () => {
+  clearInterval(S.timer);
+  S.i = Math.min(S.steps.length - 1, S.i + 1);
+  render();
+};
+
+$('play').onclick = () => {
+  if (S.timer) {
+    clearInterval(S.timer);
+    S.timer = null;
+    $('play').textContent = 'Play';
+    return;
+  }
+  play();
+};
+
+$('reset').onclick = () => {
+  clearInterval(S.timer);
+  S.timer = null;
+  S.i = 0;
+  $('play').textContent = 'Play';
+  render();
+};
 </script>
 </div>
 </div>

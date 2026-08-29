@@ -46,21 +46,314 @@
 <div class="buttons"><button id="build" class="primary">Build + Run Simulation</button><button id="prev">Prev</button><button id="next">Next</button><button id="play">Play</button><button id="reset">Reset</button></div></section>
 <div class="progress"><span id="bar"></span></div><div class="cmp-layout"><section class="panels"><article class="panel"><div class="head">Original: insertion order <span class="meta" id="ometa">-</span></div><div class="step" id="ostep">Waiting...</div><div class="canvas"><svg id="osvg"></svg></div></article><article class="panel"><div class="head">Enhanced: two-pass BFS <span class="meta" id="emeta">-</span></div><div class="step" id="estep">Waiting...</div><div class="canvas"><svg id="esvg"></svg></div></article></section><aside class="side"><section class="status" id="status">Waiting for prescription input.</section><section class="bench-wrap"><div class="bench-title">Comparative Result</div><div class="bench-box" id="result">Build the simulation to see node-order and locality results.</div></section></aside></div><section class="skip"><h2>Detected Patterns</h2><div class="note" id="detected">Patterns will appear after Build + Run.</div></section></div>
 <script>
-const $=id=>document.getElementById(id);
-const S={nodes:[],patterns:[],text:'',steps:[],i:-1,timer:null};
-const sharedText=sessionStorage.getItem('medtermExtractorText');if(sharedText){$('prescription').value=sharedText;$('text').value=sharedText;$('status').textContent='Prescription text restored from the main extractor.'}
-function norm(x){return (x||'').toUpperCase().replace(/[^A-Z0-9 .,/()%+:-]/g,' ').replace(/\s+/g,' ').trim()}
-async function patternsFor(text){const r=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text,mode:'enhanced'})});const d=await r.json();if(!r.ok)throw Error(d.error||'Pattern discovery failed');return [...new Set((d.matches||[]).map(x=>x.matched_dictionary_term||x.term))]}
-function trie(ps){const n=[{c:new Map(),d:0}];for(const p of ps){let x=0;for(const ch of p){if(!n[x].c.has(ch)){n[x].c.set(ch,n.length);n.push({c:new Map(),d:n[x].d+1})}x=n[x].c.get(ch)}}return n}
-function orderNodes(n,enh){if(!enh)return n.map((x,i)=>({...x,id:i}));const out=[],q=[0],seen=new Set([0]);while(q.length){const old=q.shift(),x=n[old];out.push({c:new Map(x.c),d:x.d,old});for(const id of x.c.values())if(!seen.has(id)){seen.add(id);q.push(id)}}const remap=new Map(out.map((x,i)=>[x.old,i]));return out.map((x,i)=>{const c=new Map();for(const [ch,id] of x.c)c.set(ch,remap.get(id));return {...x,id:i,c}})}
-function make(ps){const base=trie(ps),a=orderNodes(base,false),b=orderNodes(base,true);return [a,b]}
-function draw(svg,n,current){svg.innerHTML='';const w=Math.max(700,n.length*48),h=390;svg.setAttribute('viewBox',`0 0 ${w} ${h}`);const pos=n.map((x,i)=>({x:35+i*45,y:55+(x.d%6)*55}));for(const x of n)for(const [ch,id] of x.c){const l=document.createElementNS('http://www.w3.org/2000/svg','line');l.setAttribute('x1',pos[x.id].x);l.setAttribute('y1',pos[x.id].y);l.setAttribute('x2',pos[id].x);l.setAttribute('y2',pos[id].y);l.setAttribute('stroke','#a9bdb7');svg.appendChild(l)}for(const x of n){const c=document.createElementNS('http://www.w3.org/2000/svg','circle');c.setAttribute('cx',pos[x.id].x);c.setAttribute('cy',pos[x.id].y);c.setAttribute('r',x.id===current?13:9);c.setAttribute('fill',x.id===current?'#d96c45':'#fff');c.setAttribute('stroke','#087f78');svg.appendChild(c);const t=document.createElementNS('http://www.w3.org/2000/svg','text');t.setAttribute('x',pos[x.id].x);t.setAttribute('y',pos[x.id].y+3);t.setAttribute('text-anchor','middle');t.setAttribute('font-size','8');t.textContent=x.id;svg.appendChild(t)}}
-function render(){if(!S.nodes.length)return;const max=S.steps.length-1,done=S.i>=max;const x=S.steps[Math.max(0,S.i)]||{ch:'-',o:0,e:0};draw($('osvg'),S.nodes[0],x.o);draw($('esvg'),S.nodes[1],x.e);$('ostep').textContent=`step ${Math.max(0,S.i+1)}/${S.steps.length} | char=${x.ch} | node=${x.o}`;$('estep').textContent=`step ${Math.max(0,S.i+1)}/${S.steps.length} | char=${x.ch} | BFS node=${x.e}`;$('bar').style.width=`${done?100:Math.max(0,(S.i+1)/S.steps.length*100)}%`;if(done)$('status').textContent='Traversal complete. Comparative result is ready.'}
-function play(){clearInterval(S.timer);$('play').textContent='Pause';S.timer=setInterval(()=>{if(S.i>=S.steps.length-1){clearInterval(S.timer);$('play').textContent='Play';render();return}S.i++;render()},500)}
-$('build').onclick=async()=>{clearInterval(S.timer);const text=norm($('text').value||$('prescription').value);if(!text){$('status').textContent='Provide prescription text first.';return}try{const ps=await patternsFor(text);if(!ps.length){$('status').textContent='No dictionary patterns found.';return}$('patterns').value=ps.join(', ');$('detected').textContent=ps.join(', ');S.text=text;S.patterns=ps;S.nodes=make(ps);S.steps=[...text].map((ch,i)=>({ch,o:i%S.nodes[0].length,e:i%S.nodes[1].length}));S.i=-1;$('ometa').textContent=`nodes=${S.nodes[0].length}`;$('emeta').textContent=`nodes=${S.nodes[1].length}`;$('result').textContent=`Original nodes: ${S.nodes[0].length}\nEnhanced BFS nodes: ${S.nodes[1].length}\nEnhanced layout: contiguous breadth-first ranks\nPatterns used: ${ps.length}\nBenchmark basis: traversal simulation over ${text.length} characters`;render();play()}catch(e){$('status').textContent=e.message}};
-$('ocr').onclick=async()=>{const f=$('image').files[0];if(!f)return $('status').textContent='Choose an image first.';const fd=new FormData();fd.append('image',f);$('ocr').disabled=true;$('status').textContent='Extracting prescription text...';try{const r=await fetch('/api/ocr',{method:'POST',body:fd}),d=await r.json();if(!r.ok)throw Error(d.error||'OCR failed');$('prescription').value=d.text||'';$('text').value=d.text||'';$('status').textContent='Image text loaded. Build the simulation.'}catch(e){$('status').textContent=e.message}finally{$('ocr').disabled=false}};
-$('prev').onclick=()=>{clearInterval(S.timer);S.i=Math.max(-1,S.i-1);render()};$('next').onclick=()=>{clearInterval(S.timer);S.i=Math.min(S.steps.length-1,S.i+1);render()};$('play').onclick=()=>S.timer? (clearInterval(S.timer),$('play').textContent='Play'):play();$('reset').onclick=()=>{clearInterval(S.timer);S.i=-1;$('play').textContent='Play';render()};
-const originalBuild=$('build').onclick;$('build').onclick=async()=>{await originalBuild();if(!S.nodes.length)return;S.resultText=$('result').textContent;$('result').textContent='Simulation running. Comparative result will appear after the final step.';};const originalRender=render;render=()=>{originalRender();if(S.nodes.length&&S.i>=S.steps.length-1&&S.resultText)$('result').textContent=S.resultText;};const originalReset=$('reset').onclick;$('reset').onclick=()=>{originalReset();S.resultText='';$('result').textContent='Simulation reset. Comparative result will appear after the final step.';};
+const $ = id => document.getElementById(id);
+const S = { nodes: [], patterns: [], text: '', i: -1, timer: null, metrics: null };
+const sharedText = sessionStorage.getItem('medtermExtractorText');
+if (sharedText) {
+  $('prescription').value = sharedText;
+  $('text').value = sharedText;
+  $('status').textContent = 'Prescription text restored from the main extractor.';
+}
+
+function norm(x) {
+  return (x || '').toUpperCase().replace(/[^A-Z0-9 .,/()%+:-]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+async function patternsFor(text) {
+  const response = await fetch('/api/analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, mode: 'enhanced' })
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Pattern discovery failed.');
+  return [...new Set((data.matches || []).map(m => m.matched_dictionary_term || m.term).filter(Boolean))];
+}
+
+function buildTrie(patterns) {
+  const nodes = [{ id: 0, depth: 0, children: new Map(), output: [] }];
+  for (const pattern of patterns) {
+    let nodeId = 0;
+    for (const ch of pattern) {
+      const node = nodes[nodeId];
+      if (!node.children.has(ch)) {
+        const nextId = nodes.length;
+        nodes.push({ id: nextId, depth: node.depth + 1, children: new Map(), output: [] });
+        node.children.set(ch, nextId);
+      }
+      nodeId = node.children.get(ch);
+    }
+    nodes[nodeId].output.push(pattern);
+  }
+  return nodes;
+}
+
+function computeBfsOrder(trieNodes) {
+  const queue = [0];
+  const visited = new Set([0]);
+  const bfsOrder = [];
+  while (queue.length) {
+    const id = queue.shift();
+    const node = trieNodes[id];
+    bfsOrder.push({ id, depth: node.depth, children: [...node.children.entries()] });
+    const sortedChildren = [...node.children.entries()].sort(([a], [b]) => a.localeCompare(b));
+    for (const [, childId] of sortedChildren) {
+      if (!visited.has(childId)) {
+        visited.add(childId);
+        queue.push(childId);
+      }
+    }
+  }
+
+  const remap = new Map(bfsOrder.map((node, idx) => [node.id, idx]));
+  const enhanced = bfsOrder.map((node, idx) => ({
+    id: idx,
+    oldId: node.id,
+    depth: node.depth,
+    children: node.children.map(([ch, childId]) => [ch, remap.get(childId)])
+  }));
+
+  const original = trieNodes.map((node, idx) => ({
+    id: idx,
+    oldId: idx,
+    depth: node.depth,
+    children: [...node.children.entries()].map(([ch, childId]) => [ch, childId])
+  }));
+
+  const originalGap = computeLocality(original);
+  const enhancedGap = computeLocality(enhanced);
+
+  return { original, enhanced, originalGap, enhancedGap, reduction: originalGap ? ((originalGap - enhancedGap) / originalGap) * 100 : 0 };
+}
+
+function computeLocality(layout) {
+  let total = 0;
+  let count = 0;
+  for (const node of layout) {
+    if (!node.children.length) continue;
+    const meanGap = node.children.reduce((sum, [, child]) => sum + Math.abs(node.id - child), 0) / node.children.length;
+    total += meanGap;
+    count += 1;
+  }
+  return count ? total / count : 0;
+}
+
+function drawNodeGraph(svg, layout, highlightId, mode) {
+  svg.innerHTML = '';
+  const maxDepth = Math.max(...layout.map(n => n.depth), 0);
+  const width = Math.max(700, layout.length * 52);
+  const height = 380;
+  svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+
+  const pos = new Map();
+  const layerMap = new Map();
+  for (const node of layout) {
+    if (!layerMap.has(node.depth)) layerMap.set(node.depth, []);
+    layerMap.get(node.depth).push(node);
+  }
+
+  for (const [depth, nodesInLayer] of [...layerMap.entries()].sort((a, b) => a[0] - b[0])) {
+    const xBase = 40 + (depth / Math.max(1, maxDepth)) * (width - 120);
+    const yStart = 50;
+    const spacing = nodesInLayer.length > 1 ? (height - 100) / (nodesInLayer.length - 1) : 0;
+    nodesInLayer.forEach((node, idx) => {
+      const x = xBase;
+      const y = yStart + idx * spacing;
+      pos.set(node.id, { x, y });
+    });
+  }
+
+  for (const node of layout) {
+    for (const [ch, childId] of node.children) {
+      const from = pos.get(node.id);
+      const to = pos.get(childId);
+      if (!from || !to) continue;
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', from.x);
+      line.setAttribute('y1', from.y);
+      line.setAttribute('x2', to.x);
+      line.setAttribute('y2', to.y);
+      line.setAttribute('stroke', '#9bb7b2');
+      line.setAttribute('stroke-width', '1.3');
+      svg.appendChild(line);
+
+      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      label.setAttribute('x', (from.x + to.x) / 2);
+      label.setAttribute('y', (from.y + to.y) / 2 - 4);
+      label.setAttribute('text-anchor', 'middle');
+      label.setAttribute('font-size', '8');
+      label.setAttribute('fill', '#3b4a47');
+      label.setAttribute('font-family', 'IBM Plex Mono');
+      label.textContent = ch === ' ' ? 'SP' : ch;
+      svg.appendChild(label);
+    }
+  }
+
+  for (const node of layout) {
+    const point = pos.get(node.id);
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    const isCurrent = node.id === highlightId;
+    circle.setAttribute('cx', point.x);
+    circle.setAttribute('cy', point.y);
+    circle.setAttribute('r', isCurrent ? 13 : 10);
+    circle.setAttribute('fill', mode === 'enhanced' ? '#087f78' : '#f4d0c6');
+    circle.setAttribute('stroke', mode === 'enhanced' ? '#0b5f5c' : '#d96c45');
+    circle.setAttribute('stroke-width', '1.8');
+    svg.appendChild(circle);
+
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', point.x);
+    text.setAttribute('y', point.y + 3);
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('font-size', '8');
+    text.setAttribute('fill', '#1a1a1a');
+    text.setAttribute('font-family', 'IBM Plex Mono');
+    text.textContent = String(node.oldId);
+    svg.appendChild(text);
+  }
+}
+
+function render() {
+  if (!S.nodes.length) return;
+  const currentStep = S.steps[Math.max(0, Math.min(S.i, S.steps.length - 1))] || { original: 0, enhanced: 0, char: '-' };
+  drawNodeGraph($('osvg'), S.nodes.original, currentStep.original, 'original');
+  drawNodeGraph($('esvg'), S.nodes.enhanced, currentStep.enhanced, 'enhanced');
+
+  const progress = S.steps.length ? ((S.i + 1) / S.steps.length) * 100 : 0;
+  $('bar').style.width = `${Math.min(100, Math.max(0, progress))}%`;
+
+  $('ostep').textContent = `char=${currentStep.char} | insertion node=${currentStep.original}`;
+  $('estep').textContent = `char=${currentStep.char} | BFS node=${currentStep.enhanced}`;
+
+  if (S.metrics) {
+    $('ometa').textContent = `avg child gap=${S.metrics.originalGap.toFixed(1)}`;
+    $('emeta').textContent = `avg child gap=${S.metrics.enhancedGap.toFixed(1)} | reduction=${S.metrics.reduction.toFixed(1)}%`;
+    $('result').textContent = [
+      `Original layout: insertion-order node IDs`,
+      `Enhanced layout: two-pass BFS node ordering`,
+      `Average child gap before: ${S.metrics.originalGap.toFixed(1)}`,
+      `Average child gap after: ${S.metrics.enhancedGap.toFixed(1)}`,
+      `Estimated locality gain: ${S.metrics.reduction.toFixed(1)}%`,
+      `Patterns used: ${S.patterns.length}`,
+      `Search text length: ${S.text.length}`
+    ].join('\n');
+  }
+}
+
+function play() {
+  clearInterval(S.timer);
+  $('play').textContent = 'Pause';
+  S.timer = setInterval(() => {
+    if (S.i >= S.steps.length - 1) {
+      clearInterval(S.timer);
+      $('play').textContent = 'Play';
+      render();
+      return;
+    }
+    S.i += 1;
+    render();
+  }, 500);
+}
+
+$('build').onclick = async () => {
+  clearInterval(S.timer);
+  const text = norm($('text').value || $('prescription').value);
+  if (!text) {
+    $('status').textContent = 'Provide prescription text first.';
+    return;
+  }
+
+  try {
+    const patterns = await patternsFor(text);
+    if (!patterns.length) {
+      $('status').textContent = 'No dictionary patterns found.';
+      return;
+    }
+    $('patterns').value = patterns.join(', ');
+    $('detected').textContent = patterns.join(', ');
+
+    const trie = buildTrie(patterns);
+    const layout = computeBfsOrder(trie);
+    S.patterns = patterns;
+    S.text = text;
+    S.nodes = { original: layout.original, enhanced: layout.enhanced };
+    S.metrics = {
+      originalGap: layout.originalGap,
+      enhancedGap: layout.enhancedGap,
+      reduction: layout.reduction
+    };
+
+    S.steps = [...text].map((ch, idx) => ({
+      char: ch,
+      original: idx % Math.max(1, layout.original.length),
+      enhanced: idx % Math.max(1, layout.enhanced.length)
+    }));
+    S.i = 0;
+
+    $('status').textContent = 'BFS layout comparison ready. The enhanced ordering keeps closely related nodes nearer together.';
+    render();
+    $('play').textContent = 'Play';
+  } catch (err) {
+    $('status').textContent = err.message;
+  }
+};
+
+$('ocr').onclick = async () => {
+  const file = $('image').files[0];
+  if (!file) {
+    $('status').textContent = 'Choose an image first.';
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('image', file);
+  $('ocr').disabled = true;
+  $('status').textContent = 'Extracting prescription text...';
+
+  try {
+    const response = await fetch('/api/ocr', { method: 'POST', body: formData });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'OCR failed.');
+    const extracted = (data.text || '').trim();
+    $('prescription').value = extracted;
+    $('text').value = extracted;
+    $('status').textContent = 'Image text loaded. Build the layout comparison.';
+  } catch (err) {
+    $('status').textContent = err.message;
+  } finally {
+    $('ocr').disabled = false;
+  }
+};
+
+$('prev').onclick = () => {
+  clearInterval(S.timer);
+  S.i = Math.max(0, S.i - 1);
+  render();
+};
+
+$('next').onclick = () => {
+  clearInterval(S.timer);
+  S.i = Math.min(S.steps.length - 1, S.i + 1);
+  render();
+};
+
+$('play').onclick = () => {
+  if (S.timer) {
+    clearInterval(S.timer);
+    S.timer = null;
+    $('play').textContent = 'Play';
+    return;
+  }
+  play();
+};
+
+$('reset').onclick = () => {
+  clearInterval(S.timer);
+  S.timer = null;
+  S.i = 0;
+  $('play').textContent = 'Play';
+  render();
+};
 </script>
 </div>
 </div>

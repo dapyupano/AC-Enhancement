@@ -34,6 +34,11 @@ const abbrevCol = document.getElementById("abbrevCol");
 const abbrevList = document.getElementById("abbrevList");
 const errorBanner = document.getElementById("errorBanner");
 
+const saveResultBtn = document.getElementById("saveResultBtn");
+const saveBtnLabel = document.getElementById("saveBtnLabel");
+const saveSpinner = document.getElementById("saveSpinner");
+let lastResult = null; // { text, data } from the most recent successful analysis
+
 const savedText = sessionStorage.getItem(SHARED_TEXT_KEY);
 if (savedText && !textInput.value.trim()) textInput.value = savedText;
 
@@ -162,12 +167,14 @@ async function runAnalysis() {
 // ------------------------------ rendering -----------------------------------
 function renderResults(originalText, data) {
   resultsContent.hidden = false;
+  lastResult = { text: originalText, data };
 
   const isEnhanced = data.mode === "enhanced";
   resultModeBadge.textContent = isEnhanced ? "ENHANCED" : "ORIGINAL";
   confidenceHeader.hidden = !isEnhanced;
   scoreHeader.hidden = !isEnhanced;
   abbrevCol.hidden = !isEnhanced;
+  saveResultBtn.hidden = !isEnhanced;
 
   renderHighlightedText(originalText, data.matches);
   renderTermsTable(data.matches, isEnhanced);
@@ -209,12 +216,10 @@ function renderTermsTable(matches, isEnhanced) {
   for (const m of matches) {
     const tr = document.createElement("tr");
 
+    const displayTerm = m.matched_dictionary_term || m.term || m.canonical_term || "";
     const termTd = document.createElement("td");
     termTd.className = "mono";
-    const displayedTerm = isEnhanced && m.category === "Symbol"
-      ? (m.matched_dictionary_term || m.term)
-      : m.term;
-    termTd.textContent = displayedTerm;
+    termTd.textContent = displayTerm;
     tr.appendChild(termTd);
 
     const catTd = document.createElement("td");
@@ -254,6 +259,133 @@ function renderAbbreviations(abbreviations) {
   }
 }
 
+// ------------------------------ save result as PDF --------------------------
+saveResultBtn.addEventListener("click", downloadResultPdf);
+
+function downloadResultPdf() {
+  if (!lastResult) return;
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    showError("PDF library failed to load. Check your connection and try again.");
+    return;
+  }
+
+  setBusy(saveResultBtn, saveSpinner, saveBtnLabel, true, "Preparing PDF…");
+
+  try {
+    const { jsPDF } = window.jspdf;
+    const { text, data } = lastResult;
+    const isEnhanced = data.mode === "enhanced";
+    const matches = data.matches || [];
+    const abbreviations = data.abbreviations || [];
+
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const margin = 40;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const maxWidth = pageWidth - margin * 2;
+    let y = margin;
+
+    const ensureSpace = (needed) => {
+      if (y + needed > pageHeight - margin) {
+        doc.addPage();
+        y = margin;
+      }
+    };
+
+    // Title
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.text("Medical Term Extractor — Analysis Result", margin, y);
+    y += 18;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(110);
+    doc.text(`Mode: ${isEnhanced ? "Enhanced Aho-Corasick" : "Original Aho-Corasick"}`, margin, y);
+    y += 12;
+    doc.text(`Generated: ${new Date().toLocaleString()}`, margin, y);
+    doc.setTextColor(20);
+    y += 22;
+
+    // Extracted text
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    ensureSpace(20);
+    doc.text("Extracted Medical Text", margin, y);
+    y += 16;
+
+    doc.setFont("courier", "normal");
+    doc.setFontSize(9.5);
+    const textLines = doc.splitTextToSize(text || "(no text)", maxWidth);
+    for (const line of textLines) {
+      ensureSpace(12);
+      doc.text(line, margin, y);
+      y += 12;
+    }
+    y += 14;
+
+    // Medical terms table
+    ensureSpace(24);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text("Identified Medical Terms", margin, y);
+    y += 6;
+
+    const head = isEnhanced
+      ? [["Term", "Category", "Confidence", "Score"]]
+      : [["Term", "Category"]];
+    const body = matches.length
+      ? matches.map((m) =>
+          isEnhanced
+            ? [m.term, m.category || "—", m.confidence === "fuzzy" ? "Fuzzy" : "Exact", String(m.score ?? "—")]
+            : [m.term, m.category || "—"]
+        )
+      : [isEnhanced ? ["—", "No medical terms matched.", "", ""] : ["—", "No medical terms matched."]];
+
+    doc.autoTable({
+      startY: y + 6,
+      margin: { left: margin, right: margin },
+      head,
+      body,
+      styles: { font: "helvetica", fontSize: 9, cellPadding: 5 },
+      headStyles: { fillColor: [15, 157, 120], textColor: 255 },
+      alternateRowStyles: { fillColor: [245, 247, 250] },
+    });
+    y = doc.lastAutoTable.finalY + 24;
+
+    // Abbreviations & symbols panel
+    if (isEnhanced) {
+      ensureSpace(24);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.text("Abbreviations & Symbols Panel", margin, y);
+      y += 6;
+
+      const abbrevBody = abbreviations.length
+        ? abbreviations.map((a) => [a.term, a.meaning])
+        : [["—", "No abbreviations detected."]];
+
+      doc.autoTable({
+        startY: y + 6,
+        margin: { left: margin, right: margin },
+        head: [["Term", "Meaning"]],
+        body: abbrevBody,
+        styles: { font: "helvetica", fontSize: 9, cellPadding: 5 },
+        headStyles: { fillColor: [15, 157, 120], textColor: 255 },
+        alternateRowStyles: { fillColor: [245, 247, 250] },
+      });
+    }
+
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    doc.save(`medterm-result-${isEnhanced ? "enhanced" : "original"}-${stamp}.pdf`);
+  } catch (err) {
+    console.error(err);
+    showError("Could not generate the PDF. Please try again.");
+  } finally {
+    setBusy(saveResultBtn, saveSpinner, saveBtnLabel, false, "⬇ Save Result (PDF)");
+  }
+}
+
 function categoryClass(category) {
   const map = {
     Drug: "hit-drug",
@@ -276,9 +408,12 @@ function setBusy(btn, spinner, label, busy, busyText) {
 // store default labels once
 scanBtnLabel.dataset.default = scanBtnLabel.innerHTML;
 evalBtnLabel.dataset.default = evalBtnLabel.innerHTML;
+saveBtnLabel.dataset.default = saveBtnLabel.innerHTML;
 
 function hideResults() {
   resultsContent.hidden = true;
+  saveResultBtn.hidden = true;
+  lastResult = null;
 }
 
 function showError(msg) {

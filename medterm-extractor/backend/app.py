@@ -120,7 +120,7 @@ def analyze():
     if mode == "enhanced":
         hits = enhanced_engine.search(text)
         matches = [{
-            "term": h["term"],
+            "term": h.get("matched", h["term"]),
             "category": h.get("category", ""),
             "meaning": h.get("meaning", "—"),
             "start": h["start"],
@@ -128,6 +128,7 @@ def analyze():
             "confidence": h.get("match_type", "exact"),
             "score": round(h.get("priority_score", 0), 2),
             "matched_dictionary_term": h.get("matched", h["term"]),
+            "canonical_term": h["term"],
         } for h in hits]
 
         abbreviations = [

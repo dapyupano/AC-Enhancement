@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Medical Term Extractor — Aho-Corasick</title>
 <link rel="stylesheet" href="style.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
 
@@ -104,7 +106,13 @@
       <div id="resultsContent" hidden>
         <div class="results-header">
           <h2 class="card-title">Analysis Results</h2>
-          <span class="badge" id="resultModeBadge">ORIGINAL</span>
+          <div class="results-header-actions">
+            <span class="badge" id="resultModeBadge">ORIGINAL</span>
+            <button class="btn btn-primary btn-inline" id="saveResultBtn" hidden>
+              <span class="spinner" id="saveSpinner" hidden></span>
+              <span id="saveBtnLabel">⬇ Save Result (PDF)</span>
+            </button>
+          </div>
         </div>
 
         <div class="highlighted-text" id="highlightedText"></div>
@@ -127,7 +135,7 @@
           </div>
 
           <div class="results-col" id="abbrevCol" hidden>
-            <h3 class="results-subtitle">Abbreviations & Symbols Panel</h3>
+            <h3 class="results-subtitle">Abbreviations and Symbols Panel</h3>
             <ul class="abbrev-list" id="abbrevList"></ul>
           </div>
         </div>

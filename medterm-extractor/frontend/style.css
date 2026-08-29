@@ -76,6 +76,11 @@ body {
   max-width: 900px;
 }
 
+.btn-inline:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 /* ---------------- Side menu (permanent) ---------------- */
 .side-menu {
   position: sticky;
@@ -342,7 +347,22 @@ body[data-mode="enhanced"] .text-input:focus { outline-color: var(--teal); }
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
   margin-bottom: 14px;
+}
+
+.results-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-inline {
+  width: auto;
+  margin-top: 0;
+  padding: 8px 14px;
+  font-size: 13px;
 }
 
 .badge {
