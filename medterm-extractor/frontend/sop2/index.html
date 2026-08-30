@@ -10,6 +10,17 @@
 :root{--bg:#eef4f1;--card:#fff;--ink:#18322d;--line:#c9d9d4;--teal:#087f78;--orange:#d96c45;--muted:#60736e}*{box-sizing:border-box}body{margin:0;color:var(--ink);font-family:var(--sans);background:linear-gradient(135deg,#e9f3ef,#f7efe5);min-height:100vh}.wrap{width:min(1400px,96%);margin:1.2rem auto 2rem;display:grid;gap:1rem}.wrap a{color:var(--teal);text-decoration:none;font:600 .8rem "IBM Plex Mono",monospace}.hero,.panel,.skip{background:rgba(255,255,255,.84);border:1px solid var(--line);border-radius:16px;padding:1rem 1.1rem}.hero h1{margin:0;font-size:1.45rem}.sub{margin:.3rem 0 .8rem;color:var(--muted);font-size:.88rem}.controls{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.7rem}.field{display:grid;gap:.35rem}.label{font-size:.78rem;font-weight:700}textarea,input{width:100%;border:1px solid var(--line);border-radius:8px;padding:.55rem;font: .78rem "IBM Plex Mono",monospace;background:#fbfdfc;color:var(--ink)}textarea{min-height:76px;resize:vertical}.upload{display:grid;grid-template-columns:1fr auto;gap:.4rem}.buttons{display:flex;flex-wrap:wrap;gap:.45rem;margin-top:.7rem}button{border:0;border-radius:7px;padding:.5rem .75rem;background:#fff;border:1px solid var(--line);font-weight:700;color:var(--ink);cursor:pointer}button.primary{background:var(--teal);color:white;border-color:var(--teal)}button:disabled{opacity:.55;cursor:wait}.cmp-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(270px,360px);gap:.85rem;align-items:start}.panels{display:grid;grid-template-columns:1fr;gap:.9rem}@media(min-width:1120px){.panels{grid-template-columns:1fr 1fr}}@media(max-width:900px){.cmp-layout{grid-template-columns:1fr}.side{position:static}}.panel{padding:0;overflow:hidden;display:grid;grid-template-rows:auto auto 1fr auto;min-height:520px}.head{padding:.7rem .9rem;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;font-weight:700}.meta,.step,.result,.note{font: .72rem "IBM Plex Mono",monospace}.step{padding:.55rem .9rem;background:#f3f8f6;min-height:2.5rem}.canvas{min-height:290px;overflow:auto;background:repeating-linear-gradient(45deg,#f8fbfa,#f8fbfa 10px,#f2f7f4 10px,#f2f7f4 20px)}svg{width:100%;min-height:360px;display:block}.side{display:grid;gap:.75rem;position:sticky;top:1rem}.skip h2{margin:0 0 .45rem;font-size:.9rem}.result{white-space:pre-wrap;line-height:1.45;min-height:92px;background:#f8fbfa;border:1px solid var(--line);border-radius:12px;padding:.6rem .75rem;overflow:auto}.status{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:.62rem .85rem;font-family:"IBM Plex Mono",monospace;font-size:.82rem;white-space:pre-wrap}.bench-wrap{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:.7rem .8rem;display:grid;gap:.45rem}.bench-title{font-size:.95rem;font-weight:700}.bench-box{background:rgba(255,255,255,.86);border:1px solid var(--line);border-radius:10px;padding:.6rem .75rem;font-family:"IBM Plex Mono",monospace;font-size:.8rem;white-space:pre-wrap}.progress{height:7px;background:#d8e5e0;border-radius:10px;overflow:hidden}.progress span{display:block;height:100%;background:var(--orange);width:0}.skip{border-radius:12px;padding:.7rem .8rem;font-size:.75rem}.tablebox{max-height:280px;overflow:auto;border:1px solid var(--line);border-radius:10px}.skip table{border-collapse:collapse;width:100%;font: .68rem "IBM Plex Mono",monospace}.skip th,.skip td{border:1px solid var(--line);padding:.25rem;text-align:center}.skip th{background:#e7f1ed;position:sticky;top:0}@media(max-width:950px){.controls,.cmp-layout,.panels{grid-template-columns:1fr}.side{position:static}}
 .page-body{background:#f2f4f8}
 </style>
+<style>
+  body { font-size: 1rem; }
+  .hero h1 { font-size: clamp(1.15rem, 2vw, 1.65rem); }
+  .sub { font-size: .95rem; }
+  .label { font-size: .9rem; }
+  textarea, input, select, button { font-size: .86rem; }
+  .head { font-size: 1rem; }
+  .meta, .step, .result, .note, .status { font-size: .82rem; }
+  label[for="speed"] { display: inline-flex; align-items: center; height: 38px; margin-left: .35rem; }
+  #speed { width: 170px; height: 38px; padding: .6rem .7rem; border-radius: 10px; font-family: var(--sans); font-size: .86rem; font-weight: 600; }
+</style>
 </head>
 <body>
 <header class="topbar">
@@ -41,18 +52,36 @@
   <div class="main-col">
     <div class="page-body">
 <div class="wrap">
-<section class="hero"><h1>SOP 2: Two-Pass BFS Memory Layout</h1><div class="sub">Compare scattered insertion-order nodes with the enhanced breadth-first contiguous layout using the same prescription text.</div>
+<section class="hero"><h1>SOP 2: Two-Pass BFS Memory Layout</h1><div class="sub">Upload or type a prescription, review the extracted search text and all matched patterns, then watch both automata traverse it.</div>
 <div class="controls"><div class="field"><span class="label">Prescription image</span><div class="upload"><input id="image" type="file" accept="image/*"><button id="ocr" class="primary">Extract</button></div><textarea id="prescription" placeholder="Upload an image or type a prescription..."></textarea></div><div class="field"><span class="label">Text to search</span><textarea id="text" placeholder="Filled from the prescription..."></textarea></div><div class="field"><span class="label">Patterns (automatic)</span><textarea id="patterns" placeholder="Filled when Build + Run is clicked..."></textarea></div></div>
-<div class="buttons"><button id="build" class="primary">Build + Run Simulation</button><button id="prev">Prev</button><button id="next">Next</button><button id="play">Play</button><button id="reset">Reset</button></div></section>
-<div class="progress"><span id="bar"></span></div><div class="cmp-layout"><section class="panels"><article class="panel"><div class="head">Original: insertion order <span class="meta" id="ometa">-</span></div><div class="step" id="ostep">Waiting...</div><div class="canvas"><svg id="osvg"></svg></div></article><article class="panel"><div class="head">Enhanced: two-pass BFS <span class="meta" id="emeta">-</span></div><div class="step" id="estep">Waiting...</div><div class="canvas"><svg id="esvg"></svg></div></article></section><aside class="side"><section class="status" id="status">Waiting for prescription input.</section><section class="bench-wrap"><div class="bench-title">Comparative Result</div><div class="bench-box" id="result">Build the simulation to see node-order and locality results.</div></section></aside></div><section class="skip"><h2>Detected Patterns</h2><div class="note" id="detected">Patterns will appear after Build + Run.</div></section></div>
+<div class="buttons"><button id="build" class="primary">Build + Run Simulation</button><button id="prev">Prev</button><button id="next">Next</button><button id="play">Play</button><button id="reset">Reset</button><label class="label" for="speed">Speed</label><select id="speed" class="speed-control"><option value="900">Slow</option><option value="500" selected>Medium</option><option value="220">Fast</option></select></div></section>
+<div class="progress"><span id="bar"></span></div><div class="cmp-layout"><section class="panels"><article class="panel"><div class="head">Original: insertion order <span class="meta" id="ometa">-</span></div><div class="step" id="ostep">Waiting...</div><div class="canvas"><svg id="osvg"></svg></div></article><article class="panel"><div class="head">Enhanced: two-pass BFS <span class="meta" id="emeta">-</span></div><div class="step" id="estep">Waiting...</div><div class="canvas"><svg id="esvg"></svg></div></article></section><aside class="side"><section class="status" id="status">Waiting for prescription input.</section><section class="bench-wrap"><div class="bench-title">Comparative Result</div><div class="bench-box" id="result">Build the simulation to see node-order and locality results.</div></section></aside></div><section class="skip"><h2>Detected Patterns</h2><div class="note" id="detected">Patterns will appear after Build + Run.</div><div class="note" style="margin-top:.55rem"><strong>Figure legend</strong><br><span style="color:#dfeaf5">●</span> Original insertion-order state<br><span style="color:#176b63">●</span> Enhanced BFS state<br><span style="color:#c65f3d">●</span> Current state being visited<br>Node IDs represent memory positions; connecting lines are trie transitions.</div></section></div>
 <script>
 const $ = id => document.getElementById(id);
-const S = { nodes: [], patterns: [], text: '', i: -1, timer: null, metrics: null };
+const INITIAL_STATUS = 'SOP 2 compares scattered insertion-order nodes with a contiguous two-pass BFS layout to improve memory locality.';
+function addFigureLegends() {
+  const legends = [
+    ['osvg', '<span style="color:#3978a8">●</span> Original insertion-order state<br><span style="color:#c65f3d">●</span> Current state being visited'],
+    ['esvg', '<span style="color:#176b63">●</span> Enhanced BFS state<br><span style="color:#c65f3d">●</span> Current state being visited']
+  ];
+  legends.forEach(([svgId, content]) => {
+    const svg = $(svgId);
+    const legend = document.createElement('div');
+    legend.className = 'legend';
+    legend.style.cssText = 'padding:.55rem .9rem;border-top:1px solid var(--line);font:.72rem IBM Plex Mono,monospace;line-height:1.5';
+    legend.innerHTML = content;
+    svg.parentElement.after(legend);
+  });
+  const oldLegend = document.querySelector('.skip .note[style]');
+  if (oldLegend) oldLegend.remove();
+}
+addFigureLegends();
+const S = { nodes: [], patterns: [], text: '', i: -1, timer: null, metrics: null, resultReady: false };
 const sharedText = sessionStorage.getItem('medtermExtractorText');
 if (sharedText) {
   $('prescription').value = sharedText;
   $('text').value = sharedText;
-  $('status').textContent = 'Prescription text restored from the main extractor.';
+  $('status').textContent = INITIAL_STATUS;
 }
 
 function norm(x) {
@@ -86,6 +115,42 @@ function buildTrie(patterns) {
     nodes[nodeId].output.push(pattern);
   }
   return nodes;
+}
+
+function buildTraversalSteps(layouts, text) {
+  const failuresFor = layout => {
+    const failures = Array(layout.length).fill(0);
+    const queue = [];
+    for (const [, child] of layout[0].children) queue.push(child);
+    while (queue.length) {
+      const state = queue.shift();
+      for (const [char, child] of layout[state].children) {
+        let fallback = failures[state];
+        while (fallback && !layout[fallback].children.some(([edge]) => edge === char)) fallback = failures[fallback];
+        const transition = layout[fallback].children.find(([edge]) => edge === char);
+        failures[child] = transition && transition[1] !== child ? transition[1] : 0;
+        queue.push(child);
+      }
+    }
+    return failures;
+  };
+  const transition = (layout, failures, state, char) => {
+    let next = layout[state].children.find(([edge]) => edge === char);
+    while (!next && state) {
+      state = failures[state];
+      next = layout[state].children.find(([edge]) => edge === char);
+    }
+    return next ? next[1] : 0;
+  };
+  const originalFailures = failuresFor(layouts.original);
+  const enhancedFailures = failuresFor(layouts.enhanced);
+  let originalState = 0;
+  let enhancedState = 0;
+  return [...text].map(char => {
+    originalState = transition(layouts.original, originalFailures, originalState, char);
+    enhancedState = transition(layouts.enhanced, enhancedFailures, enhancedState, char);
+    return { char, original: originalState, enhanced: enhancedState };
+  });
 }
 
 function computeBfsOrder(trieNodes) {
@@ -141,7 +206,7 @@ function computeLocality(layout) {
 function drawNodeGraph(svg, layout, highlightId, mode) {
   svg.innerHTML = '';
   const maxDepth = Math.max(...layout.map(n => n.depth), 0);
-  const width = Math.max(700, layout.length * 52);
+  const width = Math.max(700, maxDepth * 110 + 120);
   const height = 380;
   svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
 
@@ -196,8 +261,9 @@ function drawNodeGraph(svg, layout, highlightId, mode) {
     circle.setAttribute('cx', point.x);
     circle.setAttribute('cy', point.y);
     circle.setAttribute('r', isCurrent ? 13 : 10);
-    circle.setAttribute('fill', mode === 'enhanced' ? '#087f78' : '#f4d0c6');
-    circle.setAttribute('stroke', mode === 'enhanced' ? '#0b5f5c' : '#d96c45');
+    const isHot = mode === 'enhanced' && node.children.length >= 4;
+    circle.setAttribute('fill', mode === 'enhanced' ? (isCurrent ? '#c65f3d' : (isHot ? '#176b63' : '#f5c7ae')) : (isCurrent ? '#c65f3d' : '#dfeaf5'));
+    circle.setAttribute('stroke', mode === 'enhanced' ? (isCurrent ? '#8b3d2a' : (isHot ? '#176b63' : '#c65f3d')) : (isCurrent ? '#8b3d2a' : '#3978a8'));
     circle.setAttribute('stroke-width', '1.8');
     svg.appendChild(circle);
 
@@ -214,29 +280,42 @@ function drawNodeGraph(svg, layout, highlightId, mode) {
 }
 
 function render() {
-  if (!S.nodes.length) return;
+  if (!S.nodes || !S.nodes.original || !S.nodes.enhanced || !S.nodes.original.length || !S.nodes.enhanced.length) return;
   const currentStep = S.steps[Math.max(0, Math.min(S.i, S.steps.length - 1))] || { original: 0, enhanced: 0, char: '-' };
   drawNodeGraph($('osvg'), S.nodes.original, currentStep.original, 'original');
   drawNodeGraph($('esvg'), S.nodes.enhanced, currentStep.enhanced, 'enhanced');
 
   const progress = S.steps.length ? ((S.i + 1) / S.steps.length) * 100 : 0;
   $('bar').style.width = `${Math.min(100, Math.max(0, progress))}%`;
+  if (S.steps.length && S.i >= S.steps.length - 1) S.resultReady = true;
 
-  $('ostep').textContent = `char=${currentStep.char} | insertion node=${currentStep.original}`;
-  $('estep').textContent = `char=${currentStep.char} | BFS node=${currentStep.enhanced}`;
+  const charText = currentStep.char === ' ' ? '[space]' : currentStep.char;
+  $('ostep').textContent = `char=${charText} | insertion node=${currentStep.original}`;
+  $('estep').textContent = `char=${charText} | BFS node=${currentStep.enhanced}`;
+  $('status').textContent =
+    `Text length: ${S.text.length} | Step: ${Math.max(0, S.i + 1)}/${S.steps.length}\n` +
+    `Original insertion-order node: ${currentStep.original}\n` +
+    `Enhanced BFS node: ${currentStep.enhanced}\n` +
+    `Current char: ${charText}\n` +
+    (S.resultReady ? 'Traversal complete.' : 'Simulating node layout...');
 
-  if (S.metrics) {
+  if (S.metrics && S.resultReady) {
     $('ometa').textContent = `avg child gap=${S.metrics.originalGap.toFixed(1)}`;
     $('emeta').textContent = `avg child gap=${S.metrics.enhancedGap.toFixed(1)} | reduction=${S.metrics.reduction.toFixed(1)}%`;
-    $('result').textContent = [
+    const maxGap = Math.max(S.metrics.originalGap, S.metrics.enhancedGap, 1);
+    const originalWidth = Math.max(3, S.metrics.originalGap / maxGap * 100);
+    const enhancedWidth = Math.max(3, S.metrics.enhancedGap / maxGap * 100);
+    $('result').innerHTML = [
       `Original layout: insertion-order node IDs`,
       `Enhanced layout: two-pass BFS node ordering`,
       `Average child gap before: ${S.metrics.originalGap.toFixed(1)}`,
       `Average child gap after: ${S.metrics.enhancedGap.toFixed(1)}`,
       `Estimated locality gain: ${S.metrics.reduction.toFixed(1)}%`,
       `Patterns used: ${S.patterns.length}`,
-      `Search text length: ${S.text.length}`
-    ].join('\n');
+      `Search text length: ${S.text.length}`,
+      `<div style="margin-top:.7rem;border-top:1px solid #c9d9d4;padding-top:.6rem">Original gap <span style="display:inline-block;width:${originalWidth}%;height:9px;background:#d96c45;border-radius:3px"></span> ${S.metrics.originalGap.toFixed(1)}</div>`,
+      `<div>Enhanced gap <span style="display:inline-block;width:${enhancedWidth}%;height:9px;background:#087f78;border-radius:3px"></span> ${S.metrics.enhancedGap.toFixed(1)}</div>`
+    ].join('<br>');
   }
 }
 
@@ -252,11 +331,13 @@ function play() {
     }
     S.i += 1;
     render();
-  }, 500);
+  }, Number($('speed').value));
 }
 
 $('build').onclick = async () => {
   clearInterval(S.timer);
+  S.resultReady = false;
+  $('result').textContent = 'Simulation running... comparative results will appear when the progress bar is complete.';
   const text = norm($('text').value || $('prescription').value);
   if (!text) {
     $('status').textContent = 'Provide prescription text first.';
@@ -267,6 +348,9 @@ $('build').onclick = async () => {
     const patterns = await patternsFor(text);
     if (!patterns.length) {
       $('status').textContent = 'No dictionary patterns found.';
+      $('osvg').innerHTML = '';
+      $('esvg').innerHTML = '';
+      $('result').textContent = 'No patterns were detected for this text.';
       return;
     }
     $('patterns').value = patterns.join(', ');
@@ -283,20 +367,32 @@ $('build').onclick = async () => {
       reduction: layout.reduction
     };
 
-    S.steps = [...text].map((ch, idx) => ({
-      char: ch,
-      original: idx % Math.max(1, layout.original.length),
-      enhanced: idx % Math.max(1, layout.enhanced.length)
-    }));
+    S.steps = buildTraversalSteps(S.nodes, text);
     S.i = 0;
 
     $('status').textContent = 'BFS layout comparison ready. The enhanced ordering keeps closely related nodes nearer together.';
     render();
-    $('play').textContent = 'Play';
+    play();
   } catch (err) {
     $('status').textContent = err.message;
   }
 };
+
+function clearResultsIfTextDeleted() {
+  if (($('text').value || $('prescription').value).trim()) return;
+  clearInterval(S.timer);
+  S.resultReady = false;
+  S.nodes = [];
+  S.steps = [];
+  S.metrics = null;
+  $('osvg').innerHTML = '';
+  $('esvg').innerHTML = '';
+  $('bar').style.width = '0%';
+  $('result').textContent = 'Build the simulation to see node-order and locality results.';
+  $('status').textContent = INITIAL_STATUS;
+}
+
+['text', 'prescription'].forEach(id => $(id).addEventListener('input', clearResultsIfTextDeleted));
 
 $('ocr').onclick = async () => {
   const file = $('image').files[0];

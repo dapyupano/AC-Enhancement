@@ -101,6 +101,9 @@
       letter-spacing: 0.01em;
     }
 
+    label[for="speed"] { margin-left: 0.35rem; }
+    #speed { width: 170px; height: 38px; padding: 0.6rem 0.7rem; border-radius: 10px; font-family: var(--sans); font-size: 0.86rem; font-weight: 600; }
+
     textarea, input, select {
       width: 100%;
       border-radius: 10px;
@@ -290,7 +293,7 @@
     .bar > span {
       display: block;
       height: 100%;
-      background: linear-gradient(90deg, var(--accent-a), var(--accent-c));
+      background: #e76f51;
       width: 0%;
       transition: width 120ms linear;
     }
@@ -390,6 +393,8 @@
       font-family: "IBM Plex Mono", monospace;
       font-size: 0.8rem;
       white-space: pre-wrap;
+      line-height: 1.55;
+      overflow-wrap: anywhere;
     }
   </style>
   <style>
@@ -518,11 +523,11 @@
       </section>
 
       <aside class="results-column" aria-label="Pattern matching results">
-        <section class="status" id="status">Build the automaton to begin.</section>
+        <section class="status" id="status">Original AC follows failure links one step at a time; Enhanced AC uses precomputed skip-table transitions.</section>
 
         <section class="bench-wrap">
-          <div class="bench-title">Automatic Python Backend Benchmark (ac_compare.py)</div>
-          <div class="bench-box" id="pyBenchmarkBox">Build the automaton to time the actual Python OriginalAC vs EnhancedAC engines on the Flask server.</div>
+          <div class="bench-title">Comparative Result</div>
+          <div class="bench-box" id="pyBenchmarkBox">Build the automaton to compare Original AC with Enhanced AC.</div>
         </section>
       </aside>
     </div>
@@ -584,6 +589,7 @@
       stepsEnhanced: [],
       matchesOriginal: [],
       matchesEnhanced: [],
+      originalHops: 0,
       idx: -1,
       timer: null,
       benchmarkStarted: false
@@ -1016,12 +1022,17 @@
     function runBenchmarkWhenComplete() {
       if (state.benchmarkStarted || state.idx < state.stepsOriginal.length - 1) return;
       state.benchmarkStarted = true;
-      ui.status.textContent += "\nTraversal complete. Running benchmark...";
+      ui.status.textContent += "\nTraversal complete.";
+      ui.pyBenchmarkBox.textContent =
+        `Original AC\n  Matches: ${state.matchesOriginal.length}\n  Failure hops: ${state.originalHops}\n\n` +
+        `Enhanced AC\n  Matches: ${state.matchesEnhanced.length}\n  Failure hops: 0\n\n` +
+        "Enhanced advantage: precomputed skip-table transitions.";
       runPythonBenchmarkMode();
     }
 
     async function buildAndRun() {
       stopPlay();
+      ui.pyBenchmarkBox.textContent = "Simulation running... comparative results will appear when the progress bar is complete.";
 
       let patterns = parsePatterns(ui.patterns.value);
       let text = normalizeText(ui.text.value);
@@ -1065,6 +1076,7 @@
       state.stepsEnhanced = simE.steps;
       state.matchesOriginal = simO.matches;
       state.matchesEnhanced = simE.matches;
+      state.originalHops = simO.hopsTotal;
       state.idx = -1;
       state.benchmarkStarted = false;
 
@@ -1092,8 +1104,6 @@
       }
       const iterations = Math.max(100, Number(ui.benchIterations.value) || 3000);
 
-      ui.pyBenchmarkBox.textContent = "Running on Flask backend…";
-
       try {
         const res = await fetch("/api/benchmark", {
           method: "POST",
@@ -1109,13 +1119,24 @@
         const factor = data.speedup ? (data.speedup >= 1 ? data.speedup : 1 / data.speedup) : null;
 
         ui.pyBenchmarkBox.textContent =
-          `patterns=${data.pattern_count}, iterations=${data.iterations}\n` +
-          `normalizedText="${data.normalized_text}"\n\n` +
-          `ORIGINAL   nodes=${o.nodes}  buildTime=${o.build_time_ms}ms  avg=${o.avg_time_us}us/run  failureHops=${o.failure_hops}  hits=${o.hits.length}\n` +
-          `ENHANCED   nodes=${e.nodes}  buildTime=${e.build_time_ms}ms  avg=${e.avg_time_us}us/run  failureHops=${e.failure_hops}  hits=${e.hits.length}\n\n` +
-          (factor ? `${winner} is ${factor.toFixed(2)}x faster (real Python server-side timing).` : "");
+          `Patterns: ${data.pattern_count}\n` +
+          `Iterations: ${data.iterations}\n` +
+          `Normalized text: ${data.normalized_text}\n\n` +
+          `Original AC\n` +
+          `  Nodes: ${o.nodes}\n` +
+          `  Build time: ${o.build_time_ms} ms\n` +
+          `  Average search: ${o.avg_time_us} us/run\n` +
+          `  Failure hops: ${o.failure_hops}\n` +
+          `  Matches: ${o.hits.length}\n\n` +
+          `Enhanced AC\n` +
+          `  Nodes: ${e.nodes}\n` +
+          `  Build time: ${e.build_time_ms} ms\n` +
+          `  Average search: ${e.avg_time_us} us/run\n` +
+          `  Failure hops: ${e.failure_hops}\n` +
+          `  Matches: ${e.hits.length}\n\n` +
+          (factor ? `${winner} is ${factor.toFixed(2)}x faster.` : "");
       } catch (err) {
-        ui.pyBenchmarkBox.textContent = `Error: ${err.message}`;
+        ui.pyBenchmarkBox.textContent += `\n\nBackend timing unavailable: ${err.message}`;
       } finally {
       }
     }
@@ -1147,7 +1168,7 @@
       state.idx = -1;
       state.benchmarkStarted = false;
       renderStep();
-      ui.status.textContent = "Reset complete. Press Play or Next to traverse again.";
+      ui.status.textContent = "Original AC follows failure links one step at a time; Enhanced AC uses precomputed skip-table transitions.";
     });
 
     window.addEventListener("resize", () => {
@@ -1155,7 +1176,27 @@
       renderStep();
     });
 
-    ui.status.textContent = "Upload or type a prescription, then build the automaton.";
+    function clearResultsIfTextDeleted() {
+      if (ui.text.value.trim() || ui.prescription.value.trim()) return;
+      stopPlay();
+      state.automaton = null;
+      state.stepsOriginal = [];
+      state.stepsEnhanced = [];
+      state.matchesOriginal = [];
+      state.matchesEnhanced = [];
+      state.originalHops = 0;
+      state.idx = -1;
+      state.benchmarkStarted = false;
+      ui.progressFill.style.width = "0%";
+      ui.pyBenchmarkBox.textContent = "Build the automaton to compare Original AC with Enhanced AC.";
+      ui.svgOriginal.innerHTML = "";
+      ui.svgEnhanced.innerHTML = "";
+    }
+
+    ui.text.addEventListener("input", clearResultsIfTextDeleted);
+    ui.prescription.addEventListener("input", clearResultsIfTextDeleted);
+
+    ui.status.textContent = "Original AC follows failure links one step at a time; Enhanced AC uses precomputed skip-table transitions.";
     ui.stepOriginal.textContent = "Waiting for your input...";
     ui.stepEnhanced.textContent = "Waiting for your input...";
     ui.skipMeta.textContent = "Build automaton to generate table.";
