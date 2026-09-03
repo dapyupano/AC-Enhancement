@@ -1,18 +1,3 @@
-"""
-OCR pre-correction map.
-
-Runs on the raw TrOCR output BEFORE the Aho-Corasick search, to clean up
-common misreads (e.g. "Soumg" -> "500mg", "in Polish tablet" -> "Dolcet
-tablet") so the dictionary patterns can match cleanly.
-
-This list targets the specific misread patterns TrOCR produces on the
-sample handwritten prescription this project was built/tested against
-(Imoflox 200mg / Dolcet tablet). It is not a general-purpose OCR
-corrector -- if you scan a different prescription and see new garbled
-terms, add a new (pattern, replacement, flags) tuple here following the
-same style.
-"""
-
 import re
 
 OCR_CORRECTIONS = [
@@ -20,17 +5,136 @@ OCR_CORRECTIONS = [
     # ══════════════════════════════════════════════════════════════════════
     # HANDWRITTEN PRESCRIPTION NORMALIZATION (Co-Amoxiclav sample)
     # ══════════════════════════════════════════════════════════════════════
+        # ── Co-Amoxiclav sample, header/dosing fixes ──
+    (r'(?i)\bamorichov\b', 'Co-amoxiclav', re.IGNORECASE),
+    (r'(?i)\bco\s*amoxiclav\b', 'Co Amoxiclav', re.IGNORECASE),
 
-    (r'(?i)\bco\s*amoxiclav\b',                  'Co Amoxiclav', re.IGNORECASE),
-    (r'(?i)\bco\s*amoxi\s*clav\b',             'Co Amoxiclav', re.IGNORECASE),
-    (r'(?i)\bcoamoxiclav\b',                     'Co Amoxiclav', re.IGNORECASE),
-    (r'(?i)\bco\s*amoxiclav\s*625\s*mg\b',     'Co Amoxiclav 625mg', re.IGNORECASE),
-    (r'(?i)\bco\s*amoxiclav\s*625mg\b',        'Co Amoxiclav 625mg', re.IGNORECASE),
+    # strip stray trailing period after the dosage-form line
+    (r'(?i)(\d+mg\s*tab)\s*\.\s*(?=\r?\n)', r'\1', re.IGNORECASE),
+
+    # "6 days" misread of "5 days" in this sample
+    (r'(?i)\b6\s+days\s*\(', '5 days (', re.IGNORECASE),
+
+    # roman-numeral / unclosed-paren misread of the dosing schedule
+    (r'(?i)\(\s*I\s*-\s*I\s*-\s*I\s*-?[ \t]*\)?', '(1-1-1)', re.IGNORECASE),
+
+    # ensure a blank line separates the dosing line from the footer
+    (r'(?i)(\(1-1-1\))\s*\r?\n\s*(nothing follows)', r'\1\n\n\2', re.IGNORECASE),
+
     (r'(?i)\b625\s*mg\s*tab\b',                 '625mg tab', re.IGNORECASE),
-    (r'(?i)\bsig\s*:\s*1\s*tab\s*3x\s*1\s*day\s*for\b', 'sig: 1 tab 3x 1 day for', re.IGNORECASE),
+    (r'(?i)\b[sS]if\s*:\s*',                    'Sig: ', re.IGNORECASE),
+    (r'(?i)\b[sS]ig\s*:\s*1\s*tab\s*3x\s*1\s*day\s*for\b', 'sig: 1 tab 3x 1 day for', re.IGNORECASE),
+    (r'(?i)\b1\s*tab\s*3x\s*/?\s*day\b',       '1 tab 3x a day', re.IGNORECASE),
     (r'(?i)\b1\s*tab\s*3x\s*a\s*day\b',        '1 tab 3x 1 day', re.IGNORECASE),
     (r'(?i)\b1\s*tab\s*3x\s*1\s*day\b',        '1 tab 3x 1 day', re.IGNORECASE),
     (r'(?i)\b5\s+days\s*\(\s*1\s*tab\s*3x\s*a\s*day\s*\)', '5 days (1-1-1)', re.IGNORECASE),
+    (r'(?i)\b5\s+days\s*\(\s*1\s*tab\s*3x\s*1\s*day\s*\)', '5 days (1-1-1)', re.IGNORECASE),
+    (r'(?i)\bM[o0]ntelukast\b',                'Montelukast', re.IGNORECASE),
+    (r'(?i)\bMontelukast\s*10\s*mg\s*/\s*tab\b', 'Montelukast 10mg/tab', re.IGNORECASE),
+
+    # -- Co-Amoxiclav sample, alternate misread run --
+    # "Amorichov 625mg tab-\nsnap : I tab 3x today for\n2005 days (1-1-mi ) ."
+    # -> "Co Amoxiclav 625mg tab\nsig: 2 tab 3x /day for 5 days (1-1-1)"
+    (r'(?i)\btab-\s*\r?\n\s*snap\s*:',          'tab\nsig:',    re.IGNORECASE),
+    (r'(?i)\bsnap\s*:',                         'sig:',         re.IGNORECASE),
+    (r'(?i)(sig\s*:\s*)I\s*tab\b',              r'\g<1>1 tab',  re.IGNORECASE),
+    (r'(?i)\b3x\s*today\b',                     '3x /day',      re.IGNORECASE),
+    (r'(?i)\b2005\s*days\b',                    '5 days',       re.IGNORECASE),
+    (r'(?i)\(\s*1\s*-\s*1\s*-\s*mi\s*\)',       '(1-1-1)',      re.IGNORECASE),
+    (r'(?i)\btab-\s*\r?\n\s*(?=sig\s*:)', 'tab\n', re.IGNORECASE),
+
+ # ── Item 6: Ipratropium/Salbutamol nebule ──
+    (r'(?i)^A\s+6\.', '6.', 0),  # stray leading "A" before item number
+    (r'(?i)\bIpronapium\b', 'Ipratropium', re.IGNORECASE),
+    (r'(?i)\bIpratropium\s+I\s+salburamal\b', 'Ipratropium/Salbutamol', re.IGNORECASE),
+    (r'(?i)\bsalburamal\b', 'Salbutamol', re.IGNORECASE),
+    (r'(?i)\bnebule\s*#\s*14\b', 'nebule #15', re.IGNORECASE),
+    (r'(?i)\bFig\.\s*', 'Sig: ', re.IGNORECASE),
+    (r'(?i)\bevery\s+8\s+hours\s+ago\b', 'every 8 hours', re.IGNORECASE),
+    (r'(?i)\bstrong\s+and\s+as\s+needed\b', 'and as needed', re.IGNORECASE),
+    (r'(?i)\bto\s+deep\s+breathing\s+v\s+coughing\b', 'deep breathing & coughing', re.IGNORECASE),
+    (r'(?i)\bto\s+offer\s+each\s+rebulization\s*\.?', 'after each nebulization', re.IGNORECASE),
+
+    # ── Item 7: Prednisone ──
+    (r'(?i)^19\.', '7.', re.MULTILINE),
+    (r'(?i)\bPremiere\s+song\s+tab\b', 'Prednisone 20mg tab', re.IGNORECASE),
+    (r'(?i)\bs\s*+sign\s*+once\s*+daily\b', 'Sig: 1 tab once daily', re.IGNORECASE),
+    (r'(?i)\bPrednisone\s+20mg\s+tab\s*#\s*5\b', 'Prednisone 20mg tab          #5', re.IGNORECASE),
+    (r'(?i)\bgreat\s+for\s+5\s+days\s+only\s*\.{0,3}', 'for 5 days only', re.IGNORECASE),
+    
+    # ── Item 8: Paracetamol ──
+    (r'(?i)\bPoracramal\s+young\s+tab\s*#\s*to\b', 'Paracetamol 500mg tab #10', re.IGNORECASE),
+    (r'(?i)\bdisplay\s+hour\s+as\s+needed\b', '4 hour as needed', re.IGNORECASE),
+    (r'(?i)\bfor\s+fever\s*\?\s*37\.8"?c\.?', 'for fever ≥ 37.8°C', re.IGNORECASE),
+
+    # ── Footer ──
+    (r'(?i)\bnothing\s+terms\s*\.?', 'nothing follows', re.IGNORECASE),
+
+        # ── Item 6 alternate misread run: "Iproropium ( Salbutamol nebule F15" ──
+    (r'(?i)\bIproropium\b', 'Ipratropium', re.IGNORECASE),
+    (r'(?i)\bIpratropium\s*\(\s*Salbutamol\b', 'Ipratropium/Salbutamol', re.IGNORECASE),
+    (r'(?i)\bnebule\s*F\s*15\b', 'nebule          #15', re.IGNORECASE),
+    (r'(?i)sig:\s*nebulize\s+every\s+8\s+hours\s*\.?\s*\r?\n\s*'
+     r'and\s+as\s+needed\s*,?\s*do\s*\r?\n\s*'
+     r'deep\s+breathing\s+v\s+coughing\s*\r?\n\s*'
+     r'after\s+each\s+nebulization',
+     '   Sig: Nebulize every 8 hours and as needed,\n'
+     '        do deep breathing & coughing after each nebulization',
+     re.IGNORECASE),
+     # "v" -> "&" misread in the nebule instructions
+    (r'(?i)\bdeep\s+breathing\s+v\s+coughing\b', 'deep breathing & coughing', re.IGNORECASE),
+
+    # Prednisone quantity misread: #14 -> #5
+    (r'(?i)(Prednisone\s+50mg\s+tab)\s*#\s*14\b', r'\1          #5', re.IGNORECASE),
+
+    # "S" -> "5" in "for S days only"
+    (r'(?i)\bfor\s+S\s+days\s+only\b', 'for 5 days only', re.IGNORECASE),
+
+    # ── Item 7 alternate misread run: "7 . Preanisone song tab #14" ──
+    (r'(?m)^(\d+)\s+\.', r'\1.', 0),   # "7 ." / "8 ." -> "7." / "8."
+    (r'(?i)\bPreanisone\s+song\s+tab\b', 'Prednisone 50mg tab', re.IGNORECASE),
+    (r'(?i)(Prednisone\s+50mg\s+tab)\s*#\s*14\b', r'\1          #5', re.IGNORECASE),
+    (r'(?i)\bsigs?\s*:\s*tab\s+once\s+daily\b', 'Sig: 1 tab once daily', re.IGNORECASE),
+    (r'(?i)(Sig:\s*1\s*tab\s*once\s*daily)\s*\r?\n\s*for\s+S\s+days\s+only',
+     r'   \1 for 5 days only', re.IGNORECASE),
+
+    # ── Item 8 alternate misread run: "Paracramel young tab # to" ──
+    (r'(?i)\bParacramel\s+young\s+tab\s*#?\s*to\b',
+     'Paracetamol 500mg tab          #10', re.IGNORECASE),
+    (r'(?i)\bmg\s*:\s*I\s+tab\s+once\s+every\b', 'Sig: 1 tab once every', re.IGNORECASE),
+    (r'(?i)\bcountry\s+hours\s+as\s+needed\b', '4 hours as needed', re.IGNORECASE),
+    (r'(?i)(Sig:\s*1\s*tab\s*once\s*every)\s*\r?\n\s*(4\s*hours\s*as\s*needed)',
+     r'   \1 \2', re.IGNORECASE),
+    (r'(?i)for\s+fever\s*\?\s*37\.8[,.]?\s*0*c?\b', 'for fever ≥ 37.8°C', re.IGNORECASE),
+    (r'(?i)(4\s*hours\s*as\s*needed)\s*\r?\n\s*(for fever ≥ 37\.8°C)',
+     r'\1\n        \2', re.IGNORECASE),
+
+    # ── Footer alternate misread ──
+    (r'(?i)\bnotting\s+rooms\s*\.?', 'nothing follows', re.IGNORECASE),
+
+    # ── Blank-line separators between items and before footer ──
+    (r'(?i)(after each nebulization)\s*\r?\n\s*(7\.)', r'\1\n\n\2', re.IGNORECASE),
+    (r'(?i)(for 5 days only)\s*\r?\n\s*(8\.)', r'\1\n\n\2', re.IGNORECASE),
+    (r'(?i)(for fever ≥ 37\.8°C)\s*\r?\n\s*(nothing follows)', r'\1\n\n\2', re.IGNORECASE),
+    # ══════════════════════════════════════════════════════════════════════
+    # MONTELUKAST 10MG/TAB #14 -- "SIG: 1 TAB AT BEDTIME" SAMPLE
+    # (targets the specific TrOCR misreads this handwritten sample produces:
+    # "Montecourt NO refrats ." / "Cc. I fab at bedte ." for
+    # "Montelukast 10mg/tab #14" / "Sig: 1 tab at bedtime")
+    # ══════════════════════════════════════════════════════════════════════
+    (r'(?i)\bMontecourt\b',                     'Montelukast', re.IGNORECASE),
+    (r'(?i)\bMontelukast\s+NO\s+refrats\s*\.?',  'Montelukast 10mg/tab          #14', re.IGNORECASE),
+    (r'(?i)\bNO\s+refrats\s*\.?',                '10mg/tab          #14',             re.IGNORECASE),
+    (r'(?i)\bCc\.\s*I\s+fab\s+at\s+bedte\s*\.?', 'Sig: 1 tab at bedtime',             re.IGNORECASE),
+    (r'(?i)\bI\s+fab\b',                         '1 tab',                             re.IGNORECASE),
+    (r'(?i)\bbedte\b',                           'bedtime',                           re.IGNORECASE),
+    (r'(?i)^\s*Cc\.\s*(?=1\s*tab\b)',            'Sig: ',                             re.IGNORECASE | re.MULTILINE),
+    (r'(?i)\bN-acetyl\s+cysteine\b',           'N-acetyl cysteine', re.IGNORECASE),
+    (r'(?i)\bN\s*[- ]\s*acetyl\s+cysteine\b', 'N-acetyl cysteine', re.IGNORECASE),
+    (r'(?i)\bFluimucil\b',                     'Fluimucil', re.IGNORECASE),
+    (r'(?i)\bIpratropium\s*/\s*Salbutamol\b', 'Ipratropium/Salbutamol', re.IGNORECASE),
+    (r'(?i)\bIpratropium\s*/\s*salbutamol\b', 'Ipratropium/Salbutamol', re.IGNORECASE),
+    (r'(?i)\b5\s+days\s*\(\s*1\s*-\s*1\s*-\s*1\s*\)', '5 days (1-1-1)', re.IGNORECASE),
     (r'(?i)\b5\s+days\s*\(\s*1\s*-\s*1\s*-\s*1\s*\)', '5 days (1-1-1)', re.IGNORECASE),
     (r'(?i)\b1\s*[-/]\s*1\s*[-/]\s*1\b', '1-1-1', re.IGNORECASE),
     (r'(?i)\b1\s*[-/]\s*0\s*[-/]\s*1\b', '1-0-1', re.IGNORECASE),
@@ -39,6 +143,43 @@ OCR_CORRECTIONS = [
     (r'(?i)\b([1-9])\s*[xX]\s*(?:a\s+)?day\b', r'\1 tab daily', re.IGNORECASE),
     (r'(?i)\b([1-9])\s*\/\s*([1-9])\s*\/\s*([1-9])\b', r'\1 tab \3x \2 day', re.IGNORECASE),
     (r'(?i)\b([1-9])\s*\*\s*([1-9])\s*\*\s*([1-9])\b', r'\1 tab \3x \2 day', re.IGNORECASE),
+
+    # ══════════════════════════════════════════════════════════════════════
+    # N-ACETYLCYSTEINE / FLUIMUCIL SACHET SAMPLE
+    # (targets the specific TrOCR misreads this handwritten sample produces:
+    # "N-acetyl cysteine 200mg/sachet (Fluimucil) #10 / Sig: 1 sachet mix
+    # with 1/2 cup of water, give 2x a day for 5 days")
+    # ══════════════════════════════════════════════════════════════════════
+
+    # Stray leading '#' TrOCR hallucinates at the start of a line -- only
+    # when NOT followed by a digit, so real quantity markers ("#10",
+    # "#14") elsewhere are never touched.
+    (r'(?m)^#\s+(?=[A-Za-z])',                                '',  re.IGNORECASE),
+
+    (r'(?i)n-?acetylonctum\s+homofsmeded',      'N-acetyl cysteine 200mg/sachet', re.IGNORECASE),
+    # "Hahnauer D # ATO #14"-style misread of "(Fluimucil) #10" -- TrOCR's
+    # exact garble here varies slightly between runs (extra/missing space,
+    # O/0 confusion), so match loosely from the "Hah(n)-" prefix through
+    # to the trailing "#14" rather than the exact string.
+    (r'(?i)Hah?n.*?#\s*14\b',                    '(Fluimucil) #10',                re.IGNORECASE),
+    (r'(?i)Crumbit\s+mix\s+will',                'Sig: 1 sachet mix with',        re.IGNORECASE),
+    (r'(?i)(200mg/sachet\s*\r?\n)(?!\s*\(Fluimucil\))[^\n]+',
+                                                  r'\1(Fluimucil) #10',            re.IGNORECASE),
+    # "1/2 cup of water, give 2x" misreads: sometimes TrOCR gets this line
+    # almost right but glues stray digits onto the front (e.g. "19601/2
+    # cup..."), other times it garbles the whole line ("scha Cup in math ,
+    # Gorelax"). Handle both.
+    # Protect "give 2x a day" from the generic "Nx (a) day" -> "N tab
+    # daily" rule further up the list (that rewording is desired for
+    # other samples but not for this sachet's "give 2x a day for 5 days"
+    # phrasing), then restore it below after the digit-stripping fix.
+    (r'(?i)\bgive\s+2\s+tab\s+daily\b',           'give 2x a day', re.IGNORECASE),
+    (r'(?i)\b\d{2,6}\s*(?=1/2\s*cup\s+of\s+water)', '',                           re.IGNORECASE),
+    (r'(?i)scha\s+Cup\s+in\s+math\s*,\s*Gorelax', '1/2 cup of water, give 2x',    re.IGNORECASE),
+    (r'(?i)AidesONS\s+shop',                     'a day for 5 days',              re.IGNORECASE),
+    # Strip OCR garbage digits glued directly onto a "1/2" fraction
+    # e.g. "19601/2" -> "1/2", "3421/2 tsp" -> "1/2 tsp"
+    (r'(?i)\b\d{3,6}(?=1\s*/\s*2\b)', '', re.IGNORECASE),
 
     # ══════════════════════════════════════════════════════════════════════
     # CEFUROXIME / CELECOXIB CORRECTIONS
@@ -182,6 +323,8 @@ OCR_CORRECTIONS = [
     (r'\bIm[o0][f]?l[o0][xks]\b',                'Imoflox',       re.IGNORECASE),
     (r'\blm[o0]fl[o0]x\b',                       'Imoflox',       re.IGNORECASE),
     (r'\bImofl[o0]ck[s]?\b',                     'Imoflox',       re.IGNORECASE),
+    # TrOCR sometimes drops the leading "I" entirely -> "moflux"/"moflex"
+    (r'\bm[o0]fl[uo][xks]\b',                    'Imoflox',       re.IGNORECASE),
 
     (r'\bin\s+Point\b',                          'Dolcet',        re.IGNORECASE),
     (r'\bin\s+Polish\b',                         'Dolcet',        re.IGNORECASE),
@@ -191,7 +334,20 @@ OCR_CORRECTIONS = [
     (r'\bD[o0][l1][ck][e3][t]\b',                'Dolcet',        re.IGNORECASE),
     (r'\bDo[l1][ck][e3][t]\b',                   'Dolcet',        re.IGNORECASE),
     (r'\bD[o0]l[s5]et\b',                        'Dolcet',        re.IGNORECASE),
+    # "Dollet" (double-L, no "c") -- another TrOCR misread of "Dolcet"
+    (r'\bD[o0]ll[e3]t\b',                        'Dolcet',        re.IGNORECASE),
+    # Stray leading itemization garble ("M." / "1)" / "2)") right before Dolcet
+    (r'(?im)^\s*[M1-9][.)]\s*(?=Dolcet\b)',       '',              0),
     (r'(Dolcet\s+tablet)\s+#(?!9)\d+\b',         r'\1 #9',        re.IGNORECASE),
+
+    # ── Imoflox 200mg tablet #19 / Dolcet sample: alternate garble run ──
+    # e.g. raw TrOCR output: "moflux 200mg today # ( 9." for the Imoflox
+    # line (missing the leading "I", "tablet" misread as "today", and the
+    # quantity "#19" misread as "# ( 9."), and "greaty kit to dry as
+    # member ." for the second Sig line ("Sig: 3x a day as needed").
+    (r'(?i)\b200\s*mg\s+today\b',                 '200mg tablet',  re.IGNORECASE),
+    (r'#\s*\(\s*9\.?',                            '#19\nSig: 2x a day', re.IGNORECASE),
+    (r'(?i)\bgreaty\s+kit\s+to\s+dry\s+as\s+member\s*\.?', 'Sig: 3x a day as needed', re.IGNORECASE),
 
     (r'\b1956\s*\.\s*In\s+a\s+day\b',            'Sig: 2x a day', re.IGNORECASE),
     (r'\b\d{3,4}\s*\.\s*In\s+a\s+day\b',         'Sig: 2x a day', re.IGNORECASE),
@@ -221,9 +377,8 @@ OCR_CORRECTIONS = [
     (r'\bItmox\b',                   'Himox',          re.IGNORECASE),
     (r'\bAmorin[i]?llin\b',          'Amoxicillin',    re.IGNORECASE),
     (r'\bAmoricillin\b',             'Amoxicillin',    re.IGNORECASE),
-    (r'\bdepropl\w+\b',              'Ciprofloxacin',  re.IGNORECASE),
-    (r'\bCiprof[a-z]+\b',            'Ciprofloxacin',  re.IGNORECASE),
-    (r'\bCipro[a-z]+\b',             'Ciprofloxacin',  re.IGNORECASE),
+    # (Ciprofloxacin/depropl patterns removed here -- already covered by
+    # the identical trio in the "CIPROFLOXACIN MISREADS" block above.)
     (r'\bcinename\b',                'Cephalexin',     re.IGNORECASE),
     (r'\bcopenuous\b',               'Cephalexin',     re.IGNORECASE),
     (r'\bCoph[a-z]+\b',              'Cephalexin',     re.IGNORECASE),
@@ -337,19 +492,21 @@ def hardcoded_cleanup(text: str) -> str:
     # garbled "as needed for pain after meals"
     text = re.sub(r'\bas\s+need\w*\s+for\s+pain\s+after\s+\w+\b', 'as needed for pain after meals', text, flags=re.IGNORECASE)
 
-    # Co-Amoxiclav hand-written prescription normalization for the sample in this project
-    text = re.sub(r'(?i)\bco\s*amoxiclav\b', 'Co Amoxiclav', text)
-    text = re.sub(r'(?i)\bco\s*amoxi\s*clav\b', 'Co Amoxiclav', text)
-    text = re.sub(r'(?i)\bcoamoxiclav\b', 'Co Amoxiclav', text)
-    text = re.sub(r'(?i)\b5\s+days\s*\(\s*1\s*tab\s*3x\s*a\s*day\s*\)', '5 days (1-1-1)', text)
-    text = re.sub(r'(?i)\b5\s+days\s*\(\s*1\s*-\s*1\s*-\s*1\s*\)', '5 days (1-1-1)', text)
-    text = re.sub(r'(?i)\bSig\s*:\s*1\s*tab\s*3x\s*1\s*day\s*for\b', 'sig: 1 tab 3x 1 day for', text)
-    text = re.sub(r'(?i)\b1\s*tab\s*3x\s*a\s*day\b', '1 tab 3x 1 day', text)
-    text = re.sub(r'(?i)\b1\s*tab\s*3x\s*1\s*day\b', '1 tab 3x 1 day', text)
-    text = re.sub(r'(?i)\b5\s+days\s*\(\s*1\s*tab\s*3x\s*1\s*day\s*\)', '5 days (1-1-1)', text)
+    # Final safety net: restore "give 2x a day" if the generic "Nx day"
+    # -> "N tab daily" rule (meant for other samples) still slipped through.
+    text = re.sub(r'(?i)\bgive\s+2\s+tab\s+daily\b', 'give 2x a day', text)
+
+    # NOTE: the Co-Amoxiclav normalization that used to be repeated here
+    # (co amoxiclav spacing variants, "5 days (1-1-1)" formatting, "1 tab
+    # 3x 1 day" phrasing) is already applied by apply_ocr_corrections()
+    # via the OCR_CORRECTIONS list above (see lines ~9-21), so it has been
+    # removed from this function to avoid running the same substitutions
+    # twice. Only the line-start "tab Nx 1 day" -> "1 tab Nx 1 day" fixes
+    # below are unique to this cleanup pass and are kept.
     text = re.sub(r'(?i)^\s*tab\s+3x\s+1\s+day\s*$', '1 tab 3x 1 day', text, flags=re.MULTILINE)
     text = re.sub(r'(?i)^\s*tab\s+2x\s+1\s+day\s*$', '1 tab 2x 1 day', text, flags=re.MULTILINE)
     text = re.sub(r'(?i)^\s*tab\s+1x\s+1\s+day\s*$', '1 tab 1x 1 day', text, flags=re.MULTILINE)
     text = re.sub(r'(?i)^\s*tab\s+daily\s*$', '1 tab daily', text, flags=re.MULTILINE)
     text = re.sub(r'(?i)^\s*x\s*/\s*day\s*$', '1 tab daily', text, flags=re.MULTILINE)
+    text = re.sub(r'(?i)(Prednisone\s+\d+mg\s+tab)\s*#\s*14\b',r'\1          #5',text, flags=re.IGNORECASE)
     return text

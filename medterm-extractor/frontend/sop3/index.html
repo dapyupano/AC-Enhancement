@@ -2,10 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>SOP 3 | Tiered Transition Storage</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../style.css" />
 <style>
-:root{--bg:#f3f0e8;--card:#fffdf8;--ink:#30261d;--line:#d9cdbb;--teal:#176b63;--orange:#c65f3d;--blue:#3978a8;--muted:#756b60}*{box-sizing:border-box}body{margin:0;color:var(--ink);font-family:var(--sans);background:linear-gradient(135deg,#edf4f1,#f7eadc);min-height:100vh}.wrap{width:min(1400px,96%);margin:1.2rem auto 2rem;display:grid;gap:1rem}.wrap a{color:var(--teal);text-decoration:none;font:600 .8rem "IBM Plex Mono",monospace}.hero,.panel,.tablewrap{background:rgba(255,253,248,.88);border:1px solid var(--line);border-radius:16px;padding:1rem 1.1rem}.hero h1{margin:0;font-size:1.45rem}.sub{color:var(--muted);font-size:.88rem;margin:.3rem 0 .8rem}.controls{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.7rem}.field{display:grid;gap:.35rem}.label{font-size:.78rem;font-weight:700}textarea,input,select{width:100%;border:1px solid var(--line);border-radius:8px;padding:.55rem;background:#fff;font:.78rem "IBM Plex Mono",monospace;color:var(--ink)}textarea{min-height:76px;resize:vertical}.upload{display:grid;grid-template-columns:1fr auto;gap:.4rem}.buttons{display:flex;gap:.45rem;flex-wrap:wrap;margin-top:.7rem}button{border:1px solid var(--line);border-radius:7px;background:#fff;padding:.5rem .75rem;color:var(--ink);font-weight:700;cursor:pointer}button.primary{background:var(--teal);border-color:var(--teal);color:#fff}button:disabled{opacity:.55;cursor:wait}.progress{height:7px;background:#dfd5c7;border-radius:8px;overflow:hidden}.progress span{display:block;height:100%;width:0;background:var(--orange)}.cmp-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(270px,360px);gap:.85rem;align-items:start}.panels{display:grid;grid-template-columns:1fr;gap:.9rem}@media(min-width:1120px){.panels{grid-template-columns:1fr 1fr}}@media(max-width:900px){.cmp-layout{grid-template-columns:1fr}.side{position:static}}.panel{padding:0;overflow:hidden;display:grid;grid-template-rows:auto auto 1fr auto;min-height:520px}.head{padding:.7rem .9rem;border-bottom:1px solid var(--line);font-weight:700;display:flex;justify-content:space-between}.meta,.step,.result,.note{font:.72rem "IBM Plex Mono",monospace}.step{padding:.55rem .9rem;min-height:2.5rem;background:#faf5ec}.canvas{min-height:290px;overflow:auto;background:repeating-linear-gradient(45deg,#fffdf8,#fffdf8 10px,#f8f0e5 10px,#f8f0e5 20px)}svg{width:100%;min-height:360px;display:block}.side{display:grid;gap:.75rem;position:sticky;top:1rem}.tablewrap h2{font-size:.9rem;margin:0 0 .45rem}.result{white-space:pre-wrap;line-height:1.5;background:#fff;border:1px solid var(--line);border-radius:12px;padding:.6rem .75rem;min-height:92px;overflow:auto}.status{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:.62rem .85rem;font-family:"IBM Plex Mono",monospace;font-size:.82rem;white-space:pre-wrap}.bench-wrap{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:.7rem .8rem;display:grid;gap:.45rem}.bench-title{font-size:.95rem;font-weight:700}.bench-box{background:rgba(255,255,255,.86);border:1px solid var(--line);border-radius:10px;padding:.6rem .75rem;font-family:"IBM Plex Mono",monospace;font-size:.8rem;white-space:pre-wrap}.swatch{display:inline-block;width:.7rem;height:.7rem;border-radius:2px;margin-right:.25rem;vertical-align:middle}.tablewrap{border-radius:12px;padding:.7rem .8rem;font-size:.75rem}.tablebox{max-height:280px;overflow:auto;border:1px solid var(--line);border-radius:10px}.tablewrap table{border-collapse:collapse;width:100%;font:.68rem "IBM Plex Mono",monospace}.tablewrap th,.tablewrap td{border:1px solid var(--line);padding:.25rem;text-align:center}.tablewrap th{position:sticky;top:0;background:#f1e5d3}.tablewrap td:nth-child(2){color:var(--blue)}.tablewrap td:nth-child(3){color:var(--teal)}@media(max-width:950px){.controls,.cmp-layout,.panels{grid-template-columns:1fr}.side{position:static}}
+:root{--bg:#f3f0e8;--card:#fffdf8;--ink:#30261d;--line:#d9cdbb;--teal:#176b63;--orange:#c65f3d;--blue:#3978a8;--muted:#756b60}*{box-sizing:border-box}body{margin:0;color:var(--ink);font-family:var(--sans);background:linear-gradient(135deg,#edf4f1,#f7eadc);min-height:100vh}.wrap{width:min(1400px,96%);margin:1.2rem auto 2rem;display:grid;gap:1rem}.wrap a{color:var(--teal);text-decoration:none;font:600 .8rem "Times New Roman",monospace}.hero,.panel,.tablewrap{background:rgba(255,253,248,.88);border:1px solid var(--line);border-radius:16px;padding:1rem 1.1rem}.hero h1{margin:0;font-size:1.45rem}.sub{color:var(--muted);font-size:.88rem;margin:.3rem 0 .8rem}.controls{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}.field-stack{display:grid;gap:.7rem;align-content:start}.field{display:grid;gap:.35rem}.label{font-size:.78rem;font-weight:700}textarea,input,select{width:100%;border:1px solid var(--line);border-radius:8px;padding:.55rem;background:#fff;font:.78rem "Times New Roman",monospace;color:var(--ink)}textarea{min-height:76px;resize:vertical}.upload{display:grid;grid-template-columns:1fr auto;gap:.4rem}.buttons{display:flex;gap:.45rem;flex-wrap:wrap;margin-top:.7rem}button{border:1px solid var(--line);border-radius:7px;background:#fff;padding:.5rem .75rem;color:var(--ink);font-weight:700;cursor:pointer}button.primary{background:var(--teal);border-color:var(--teal);color:#fff}button:disabled{opacity:.55;cursor:wait}.progress{height:7px;background:#dfd5c7;border-radius:8px;overflow:hidden}.progress span{display:block;height:100%;width:0;background:var(--orange)}.cmp-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(270px,360px);gap:.85rem;align-items:start}.panels{display:grid;grid-template-columns:1fr;gap:.9rem}@media(min-width:1120px){.panels{grid-template-columns:1fr 1fr}}@media(max-width:900px){.cmp-layout{grid-template-columns:1fr}.side{position:static}}.panel{padding:0;overflow:hidden;display:grid;grid-template-rows:auto auto 1fr auto;min-height:520px}.head{padding:.7rem .9rem;border-bottom:1px solid var(--line);font-weight:700;display:flex;justify-content:space-between}.meta,.step,.result,.note{font:.72rem "Times New Roman",monospace}.step{padding:.55rem .9rem;min-height:2.5rem;background:#faf5ec}.canvas{min-height:290px;overflow:auto;background:repeating-linear-gradient(45deg,#fffdf8,#fffdf8 10px,#f8f0e5 10px,#f8f0e5 20px)}svg{width:100%;min-height:360px;display:block}.side{display:grid;gap:.75rem;position:sticky;top:1rem}.tablewrap h2{font-size:.9rem;margin:0 0 .45rem}.result{white-space:pre-wrap;line-height:1.5;background:#fff;border:1px solid var(--line);border-radius:12px;padding:.6rem .75rem;min-height:92px;overflow:auto}.status{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:.62rem .85rem;font-family:"Times New Roman",monospace;font-size:.82rem;white-space:pre-wrap}.bench-wrap{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:.7rem .8rem;display:grid;gap:.45rem}.bench-title{font-size:.95rem;font-weight:700}.bench-box{background:rgba(255,255,255,.86);border:1px solid var(--line);border-radius:10px;padding:.6rem .75rem;font-family:"Times New Roman",monospace;font-size:.8rem;white-space:pre-wrap}.swatch{display:inline-block;width:.7rem;height:.7rem;border-radius:2px;margin-right:.25rem;vertical-align:middle}.tablewrap{border-radius:12px;padding:.7rem .8rem;font-size:.75rem}.tablebox{max-height:280px;overflow:auto;border:1px solid var(--line);border-radius:10px}.tablewrap table{border-collapse:collapse;width:100%;font:.68rem "Times New Roman",monospace}.tablewrap th,.tablewrap td{border:1px solid var(--line);padding:.25rem;text-align:center}.tablewrap th{position:sticky;top:0;background:#f1e5d3}.tablewrap td:nth-child(2){color:var(--blue)}.tablewrap td:nth-child(3){color:var(--teal)}@media(max-width:950px){.controls,.cmp-layout,.panels{grid-template-columns:1fr}.side{position:static}}
 .page-body{background:#f2f4f8}
 </style>
 <style>
@@ -19,6 +18,15 @@
   .meta, .step, .result, .note, .status, .bench-box { font-size: .82rem; }
   label[for="speed"] { display: inline-flex; align-items: center; height: 38px; margin-left: .35rem; }
   #speed { width: 170px; height: 38px; padding: .6rem .7rem; border-radius: 10px; font-family: var(--sans); font-size: .86rem; font-weight: 600; }
+  label[for="iterations"] { display: inline-flex; align-items: center; height: 38px; }
+  #iterations { max-width: 140px; height: 38px; padding: .6rem .7rem; border-radius: 10px; }
+  .buttons { justify-content: space-between; align-items: center; }
+  .buttons-left, .buttons-right { display: flex; flex-wrap: wrap; gap: .55rem; align-items: center; }
+  .buttons button { border-radius: 999px; transition: transform 120ms ease, box-shadow 120ms ease; }
+  .buttons button:hover { transform: translateY(-1px); box-shadow: 0 6px 12px rgba(0,0,0,.08); }
+  .buttons button.alt { background: var(--orange); color: #fff; border-color: transparent; }
+  .buttons button.icon-btn { background: var(--orange); color: #fff; border-color: transparent; width: 2.4rem; height: 2.4rem; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 1rem; line-height: 1; }
+  .buttons button.icon-btn:hover { background: var(--teal); }
 </style>
 </head>
 <body>
@@ -27,7 +35,6 @@
     <img class="brand-mark" src="../logoo.png" alt="Medical Term Extractor logo" />
     <div class="brand-text">
       <span class="brand-title">Medical Term Extractor</span>
-      <span class="brand-sub">Aho–Corasick for handwritten prescriptions</span>
     </div>
   </div>
 </header>
@@ -51,23 +58,23 @@
   <div class="main-col">
     <div class="page-body">
 <div class="wrap">
-  <section class="hero"><h1>SOP 3: Tiered Hot/Cold Transition Storage</h1><div class="sub">Compare the original full-alphabet transition rows with enhanced dense hot states and sparse cold states.</div><div class="controls"><div class="field"><span class="label">Prescription image</span><div class="upload"><input id="image" type="file" accept="image/*"><button id="ocr" class="primary">Extract</button></div><textarea id="prescription" placeholder="Upload an image or type a prescription..."></textarea></div><div class="field"><span class="label">Text to search</span><textarea id="text" placeholder="Filled from the prescription..."></textarea></div><div class="field"><span class="label">Patterns (automatic)</span><textarea id="patterns" placeholder="Filled when Build + Run is clicked..."></textarea></div></div><div class="buttons"><button id="build" class="primary">Build + Run Simulation</button><button id="prev">Prev</button><button id="next">Next</button><button id="play">Play</button><button id="reset">Reset</button></div></section><div class="progress"><span id="bar"></span></div><div class="cmp-layout"><section class="panels"><article class="panel"><div class="head">Original: full alphabet <span class="meta" id="ometa">-</span></div><div class="step" id="ostep">Waiting...</div><div class="canvas"><svg id="osvg"></svg></div></article><article class="panel"><div class="head">Enhanced: hot/cold tiers <span class="meta" id="emeta">-</span></div><div class="step" id="estep">Waiting...</div><div class="canvas"><svg id="esvg"></svg></div></article></section><aside class="side"><section class="status" id="status">Waiting for prescription input.</section><section class="bench-wrap"><div class="bench-title">Comparative Result</div><div class="bench-box" id="result">Build the simulation to compare transition storage.</div></section><section class="bench-wrap"><div class="bench-title">Storage Legend</div><div class="bench-box"><span class="swatch" style="background:#3978a8"></span>Full alphabet / dense<br><span class="swatch" style="background:#176b63"></span>Hot state<br><span class="swatch" style="background:#c65f3d"></span>Cold sparse state</div></section></aside></div><section class="tablewrap"><h2>Detected Patterns and Storage Summary</h2><div class="tablebox"><table><thead><tr><th>State</th><th>Original cells</th><th>Enhanced storage</th><th>Tier</th></tr></thead><tbody id="storage"></tbody></table></div></section></div>
+  <section class="hero"><h1>SOP 3: Tiered Hot/Cold Transition Storage</h1><div class="sub">Compare the original full-alphabet transition rows with enhanced dense hot states and sparse cold states.</div><div class="controls"><div class="field"><span class="label">Prescription image</span><div class="upload"><input id="image" type="file" accept="image/*"><button id="ocr" class="primary">Extract</button></div><textarea id="prescription" placeholder="Upload an image or type a prescription..."></textarea></div><div class="field-stack"><div class="field"><span class="label">Text to search</span><textarea id="text" placeholder="Filled from the prescription..."></textarea></div><div class="field"><span class="label">Patterns (automatic)</span><textarea id="patterns" placeholder="Filled when Build + Run is clicked..."></textarea></div></div></div><div class="buttons">
+  <div class="buttons-left"><button id="build" class="primary">Run</button></div>
+  <div class="buttons-right">
+    <button id="prev" class="icon-btn" title="Prev" aria-label="Prev">&laquo;</button>
+    <button id="next" class="icon-btn" title="Next" aria-label="Next">&raquo;</button>
+    <button id="play" class="alt">Play</button>
+    <button id="reset" class="icon-btn" title="Reset" aria-label="Reset">&#8635;</button>
+    <label class="label" for="speed">Speed</label>
+    <select id="speed" class="speed-control"><option value="900">Slow</option><option value="500" selected>Medium</option><option value="220">Fast</option></select>
+    <label class="label" for="iterations">Iterations</label>
+    <input id="iterations" type="number" min="100" step="100" value="50000" />
+  </div>
+</div></section><div class="progress"><span id="bar"></span></div><div class="cmp-layout"><section class="panels"><article class="panel"><div class="head">Original: full alphabet <span class="meta" id="ometa">-</span></div><div class="step" id="ostep">Waiting...</div><div class="canvas"><svg id="osvg"></svg></div></article><article class="panel"><div class="head">Enhanced: hot/cold tiers <span class="meta" id="emeta">-</span></div><div class="step" id="estep">Waiting...</div><div class="canvas"><svg id="esvg"></svg></div></article></section><aside class="side"><section class="status" id="status">Waiting for prescription input.</section><section class="bench-wrap"><div class="bench-title">Comparative Result</div><div class="bench-box" id="result">Build the simulation to compare transition storage.</div></section><section class="bench-wrap"><div class="bench-title">Storage Legend</div><div class="bench-box"><span class="swatch" style="background:#3978a8"></span>Full alphabet / dense<br><span class="swatch" style="background:#176b63"></span>Hot state<br><span class="swatch" style="background:#c65f3d"></span>Cold sparse state</div></section></aside></div><section class="tablewrap"><h2>Detected Patterns and Storage Summary</h2><div class="tablebox"><table><thead><tr><th>State</th><th>Original cells</th><th>Enhanced storage</th><th>Tier</th></tr></thead><tbody id="storage"></tbody></table></div></section></div>
 <script>
 const $ = id => document.getElementById(id);
 document.querySelector('.sub').textContent = 'Upload or type a prescription, review the extracted search text and all matched patterns, then watch both automata traverse it.';
-const speedControl = document.createElement('select');
-speedControl.id = 'speed';
-speedControl.className = 'speed-control';
-speedControl.innerHTML = '<option value="900">Slow</option><option value="500" selected>Medium</option><option value="220">Fast</option>';
-speedControl.setAttribute('aria-label', 'Simulation speed');
-speedControl.style.cssText = 'width:170px;height:38px;padding:.6rem .7rem;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);font:600 .86rem var(--sans)';
-const speedLabel = document.createElement('label');
-speedLabel.className = 'label';
-speedLabel.textContent = 'Speed';
-speedLabel.htmlFor = 'speed';
-speedLabel.style.marginLeft = '.35rem';
-document.getElementById('reset').after(speedLabel);
-speedLabel.after(speedControl);
+const speedControl = $('speed');
 const INITIAL_STATUS = 'SOP 3 compares full-alphabet transition rows with hot dense states and cold sparse states to reduce storage.';
 function addFigureLegends() {
   const legends = [
@@ -78,7 +85,7 @@ function addFigureLegends() {
     const svg = $(svgId);
     const legend = document.createElement('div');
     legend.className = 'legend';
-    legend.style.cssText = 'padding:.55rem .9rem;border-top:1px solid var(--line);font:.72rem IBM Plex Mono,monospace;line-height:1.5';
+    legend.style.cssText = 'padding:.55rem .9rem;border-top:1px solid var(--line);font:.72rem Times New Roman,monospace;line-height:1.5';
     legend.innerHTML = content;
     svg.parentElement.after(legend);
   });
@@ -242,7 +249,7 @@ function drawNodeGraph(svg, trieNodes, currentId, highlightHot) {
     text.setAttribute('font-size', '8');
     text.setAttribute('text-anchor', 'middle');
     text.setAttribute('fill', '#1a1a1a');
-    text.setAttribute('font-family', 'IBM Plex Mono');
+    text.setAttribute('font-family', 'Times New Roman');
     text.textContent = String(node.id);
     svg.appendChild(text);
   }

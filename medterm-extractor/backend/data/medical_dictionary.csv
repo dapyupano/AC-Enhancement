@@ -4,6 +4,8 @@ PARACETAMOL,Drug,
 AMOXICILLIN,Drug,
 AMOXICILLIN CLAVULANATE,Drug,
 CO-AMOXICLAV,Drug,
+CO AMOXICLAV,Drug,
+COAMOXICLAV,Drug,
 CEFALEXIN,Drug,
 CEFIXIME,Drug,
 METRONIDAZOLE,Drug,
@@ -29,6 +31,12 @@ INSULIN,Drug,
 CLINDAMYCIN,Drug,
 DICLOFENAC,Drug,
 TRAMADOL,Drug,
+MONTELUKAST,Drug,
+IPRATROPIUM,Drug,
+SALBUTAMOL,Drug,
+NEBULE,Dosage,
+10MG/TAB,Dosage,
+625MG,Dosage, 
 250MG,Dosage,
 500MG,Dosage,
 MG,Dosage,Milligram
@@ -40,7 +48,7 @@ UG,Dosage,Microgram
 20MG,Dosage,
 50MG,Dosage,
 100MG,Dosage,
-ML,Dosage,Millilitre
+ML,Dosage,Millilitre,
 1 TAB,Dosage,
 2 TABS,Dosage,
 1 TSP,Dosage,
@@ -53,6 +61,10 @@ OD,Abbreviation,Once a day
 BID,Abbreviation,Twice a day
 TID,Abbreviation,Three times a day
 QID,Abbreviation,Four times a day
+1 X,Abbreviation,Once daily,
+2 X,Abbreviation,Twice daily
+3 X,Abbreviation,Three times daily
+4 X,Abbreviation,Four times daily
 1X,Abbreviation,Once daily
 2X,Abbreviation,Twice daily
 3X,Abbreviation,Three times daily
@@ -93,22 +105,6 @@ TAB,Abbreviation,Tablet
 CAP,Abbreviation,Capsule
 SYP,Abbreviation,Syrup
 DAW,Abbreviation,Dispense as written
-FEVER,Treatment,
-COUGH,Treatment,
-COLD,Treatment,
-HYPERTENSION,Treatment,
-DIABETES,Treatment,
-INFECTION,Treatment,
-ASTHMA,Treatment,
-ALLERGY,Treatment,
-PAIN,Treatment,
-DIARRHEA,Treatment,
-GASTRITIS,Treatment,
-UTI,Treatment,
-PNEUMONIA,Treatment,
-NAUSEA,Treatment,
-INFLAMMATION,Treatment,
-ANEMIA,Treatment,
 IMOFLOX,Drug,
 DOLCET,Drug,
 CEFUROXIME,Drug,
@@ -165,6 +161,8 @@ GLIMEPIRIDE,Drug,
 FOLIC ACID,Drug,
 VITAMIN B COMPLEX,Drug,
 B-COMPLEX,Drug,
+N-ACETYL CYSTEINE,Drug,
+FLUIMUCIL,Drug,
 200MG,Dosage,
 400MG,Dosage,
 1000MG,Dosage,
@@ -343,3 +341,4 @@ LMP,Abbreviation,Last menstrual period
 AOG,Abbreviation,Age of gestation / Gestational age
 GA,Abbreviation,Age of gestation / Gestational age
 UTI,Abbreviation,Urinary tract infection
+SIG,Abbreviation,Directions for use

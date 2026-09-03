@@ -25,6 +25,13 @@ import cv2
 import torch
 from PIL import Image
 
+# Register HEIC/HEIF support for Pillow
+try:
+    import pillow_heif
+    pillow_heif.register_heif_opener()
+except ImportError:
+    pass  # pillow-heif not installed; HEIC support unavailable
+
 _processor = None
 _model = None
 
@@ -107,9 +114,18 @@ def segment_lines(image_bytes):
     )
 
     # Horizontal projection: how much ink is on each row.
-    row_sums = np.sum(binary, axis=1)
-    threshold = w_img * 0.02  # 2% of row width must be ink to count as "active"
-    active = (row_sums > threshold).astype(np.uint8)
+    # `binary` is 0/255 per pixel, so np.sum() over a row gives a value
+    # scaled by 255, NOT an ink-pixel count. Dividing by 255 here converts
+    # it back to an actual pixel count so the threshold below (expressed
+    # as "N% of row width in pixels") is compared against the right units.
+    # Skipping this fix means the effective threshold is ~255x too low,
+    # so almost every row counts as "active" and tightly-spaced or cursive
+    # handwriting (little/no fully blank row between lines) collapses into
+    # one giant multi-line band -- which TrOCR's single-line model then
+    # reads as near-garbage output.
+    row_ink_counts = np.sum(binary, axis=1) / 255.0
+    threshold = w_img * 0.06  # 6% of row width must be ink to count as "active"
+    active = (row_ink_counts > threshold).astype(np.uint8)
 
     # Group consecutive active rows into line bands.
     line_bands = []

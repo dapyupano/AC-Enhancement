@@ -196,6 +196,12 @@ class EnhancedAhoCorasick:
         # sparse map to avoid allocating mostly-empty rows.
         self._alphabet = tuple(sorted(alphabet))
         self._alphabet_index = {a: i for i, a in enumerate(self._alphabet)}
+        self._ascii_index = [-1] * 128
+        for i, ch in enumerate(self._alphabet):
+            code = ord(ch)
+            if code < 128:
+                self._ascii_index[code] = i
+
         for state, transitions in enumerate(self.skip):
             if self.store_kind[state] == "hot":
                 dense = [self.q0] * len(self._alphabet)
@@ -233,24 +239,31 @@ class EnhancedAhoCorasick:
         # ---- O(1) skip-table scan ----
         state = self.q0
         candidates = []
+        nodes = self.nodes
+        skip = self.skip
+        ascii_index = self._ascii_index
+        q0 = self.q0
+        append_candidate = candidates.append
+
         for i, a in enumerate(T):
             # Space is a normal alphabet symbol here (some dictionary terms,
             # e.g. "1 TAB", span a whitespace boundary), so it is routed
             # through the skip table like any other character rather than
             # forcing a reset to q0.
-            transitions = self.skip[state]
+            transitions = skip[state]
             if isinstance(transitions, list):
-                char_index = self._alphabet_index.get(a)
-                state = transitions[char_index] if char_index is not None else self.q0
+                code = ord(a)
+                idx = ascii_index[code] if code < 128 else -1
+                state = transitions[idx] if idx >= 0 else q0
             else:
-                state = transitions.get(a, self.q0)
-            node = self.nodes[state]
+                state = transitions.get(a, q0)
+
+            node = nodes[state]
             if node.output:
                 for p in node.output:
                     start = i - len(p) + 1
-                    if start < 0:
-                        continue
-                    candidates.append({"term": p, "start": start, "end": i + 1})
+                    if start >= 0:
+                        append_candidate({"term": p, "start": start, "end": i + 1})
 
         candidates = self._normalize_symbol_candidates(candidates, T)
 
@@ -320,7 +333,16 @@ class EnhancedAhoCorasick:
             covered_positions.update(range(hit["start"], hit["end"]))
 
         for idx, (tok, (tstart, tend)) in enumerate(zip(tokens, token_spans)):
-            if len(tok) < 3:
+            # Keep fuzzy correction for genuine OCR misspellings like "moflox" ->
+            # "IMOFLOX", but block common OCR false positives like "CUP" and "MIX"
+            # which were previously being mapped to "CAP" and "MI".
+            tok_upper = tok.upper()
+            if tok_upper in {"CUP", "MIX"}:
+                continue
+            # Avoid rewriting normal 3-letter words like "day" into a valid
+            # abbreviation such as "daw". Real OCR corruption cases like
+            # "moflox" are longer and remain eligible for fuzzy correction.
+            if len(tok) == 3:
                 continue
             if any(pos in covered_positions for pos in range(tstart, tend)):
                 continue
@@ -345,6 +367,52 @@ class EnhancedAhoCorasick:
                     "priority_score": round(sim, 2),
                     "match_type": "fuzzy",
                 })
+
+        # Some dosage forms appear fused as a numeric token (e.g. "200mg")
+        # and should still contribute the standalone unit abbreviation to the
+        # abbreviations panel ("MG" / "MCG" / "UG" / "ML"). Keep the exact
+        # dosage match as-is while also surfacing the unit abbreviation.
+        unit_hits = []
+        for unit_match in re.finditer(r"(?i)(\d+)\s*(mg|mcg|ug|ml|g|tab|tabs|cap|caps)\b", T):
+            unit = unit_match.group(2).upper()
+            start = unit_match.start(2)
+            end = unit_match.end(2)
+            if any(h.get("term") == unit and h.get("start") == start and h.get("end") == end for h in output):
+                continue
+            unit_hits.append({
+                "term": unit,
+                "matched": unit,
+                "start": start,
+                "end": end,
+                "category": self.term_category.get(unit, "Dosage"),
+                "meaning": self.term_meaning.get(unit, "—"),
+                "priority_score": 0.72,
+                "match_type": "exact",
+            })
+
+        output.extend(unit_hits)
+        # Keep exact standalone abbreviation tokens such as "2X" and "3X"
+        # even when the longer frequency phrase "2X A DAY" also matches.
+        seen_exact = {(hit["term"], hit["start"], hit["end"]) for hit in output}
+        for tok, (tstart, tend) in zip(tokens, token_spans):
+            token = tok.upper()
+            if token not in self.term_category:
+                continue
+            if (token, tstart, tend) in seen_exact:
+                continue
+            if self.term_category[token] not in {"Abbreviation", "Dosage", "Symbol", "Frequency"}:
+                continue
+            output.append({
+                "term": token,
+                "matched": token,
+                "start": tstart,
+                "end": tend,
+                "category": self.term_category.get(token, ""),
+                "meaning": self.term_meaning.get(token, "—"),
+                "priority_score": 0.72,
+                "match_type": "exact",
+            })
+            seen_exact.add((token, tstart, tend))
 
         output.sort(key=lambda h: h["start"])
         return output

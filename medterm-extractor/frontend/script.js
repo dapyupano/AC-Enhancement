@@ -94,12 +94,24 @@ dropzone.addEventListener("drop", (e) => {
 });
 
 function handleFile(file) {
-  if (!file.type.match(/^image\/(jpeg|png|webp)$/)) {
-    showError("Unsupported file type. Please upload a JPG, PNG, or WEBP image.");
+  // Check MIME type OR file extension (some browsers don't recognize HEIC MIME type)
+  const validMimeTypes = /^image\/(jpeg|png|webp|heic|heif)$/;
+  const validExtensions = /\.(jpg|jpeg|png|webp|heic|heif)$/i;
+  
+  if (!validMimeTypes.test(file.type) && !validExtensions.test(file.name)) {
+    showError("Unsupported file type. Please upload a JPG, PNG, WEBP, or HEIC image.");
     return;
   }
   state.selectedFile = file;
   scanBtn.disabled = false;
+
+  // Browsers can't render HEIC/HEIF natively, so skip preview for those formats
+  const isHeic = /\.(heic|heif)$/i.test(file.name) || file.type.match(/^image\/(heic|heif)$/);
+  if (isHeic) {
+    previewImg.hidden = true;
+    dropzoneTitle.textContent = file.name;
+    return;
+  }
 
   const reader = new FileReader();
   reader.onload = (e) => {
@@ -187,26 +199,7 @@ function renderResults(originalText, data) {
 }
 
 function renderHighlightedText(text, matches) {
-  if (!matches.length) {
-    highlightedText.textContent = text;
-    return;
-  }
-  const sorted = [...matches].sort((a, b) => a.start - b.start);
-  let html = "";
-  let cursor = 0;
-  for (const m of sorted) {
-    if (m.start < cursor) continue; // guard against any overlap
-    html += escapeHtml(text.slice(cursor, m.start));
-    const catClass = categoryClass(m.category);
-    const fuzzyClass = m.confidence === "fuzzy" ? " hit-fuzzy" : "";
-    const title = m.confidence === "fuzzy"
-      ? `Fuzzy match → ${m.matched_dictionary_term}`
-      : (m.category || "Medical term");
-    html += `<mark class="${catClass}${fuzzyClass}" title="${escapeHtml(title)}">${escapeHtml(text.slice(m.start, m.end))}</mark>`;
-    cursor = m.end;
-  }
-  html += escapeHtml(text.slice(cursor));
-  highlightedText.innerHTML = html;
+  highlightedText.textContent = text;
 }
 
 function renderTermsTable(matches, isEnhanced) {

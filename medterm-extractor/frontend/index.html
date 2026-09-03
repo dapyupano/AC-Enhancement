@@ -15,7 +15,6 @@
       <img class="brand-mark" src="logoo.png" alt="Medical Term Extractor logo" />
       <div class="brand-text">
         <span class="brand-title">Medical Term Extractor</span>
-        <span class="brand-sub">Aho–Corasick for handwritten prescriptions</span>
       </div>
     </div>
   </header>
@@ -62,7 +61,7 @@
       <main class="layout">
 
     <p class="mode-caption" id="modeCaption">
-      Running the <strong>baseline Aho-Corasick</strong> automaton — exact matching only, no context awareness, no fuzzy matching, no abbreviation lookup.
+      Running the <strong>Existing Aho-Corasick</strong> automaton - exact matching only, no context awareness, no fuzzy matching, no abbreviation lookup.
     </p>
 
     <section class="panels">
@@ -71,10 +70,9 @@
         <h2 class="card-title">Upload Prescription</h2>
 
         <label class="dropzone" id="dropzone" for="fileInput">
-          <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" hidden />
+          <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" hidden />
           <div class="dropzone-icon">🖼</div>
           <div class="dropzone-title" id="dropzoneTitle">Choose or drop an image</div>
-          <div class="dropzone-sub">JPG, PNG, WEBP supported</div>
           <img id="previewImg" class="preview-img" alt="Prescription preview" hidden />
         </label>
 

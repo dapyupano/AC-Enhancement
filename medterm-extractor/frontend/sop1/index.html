@@ -4,9 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Aho-Corasick Side-by-Side Visualizer</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../style.css" />
   <style>
     :root {
@@ -64,8 +61,14 @@
 
     .control-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-columns: 1fr 1fr;
       gap: 0.65rem;
+    }
+
+    .field-stack {
+      display: grid;
+      gap: 0.65rem;
+      align-content: start;
     }
 
     @media (max-width: 900px) {
@@ -84,7 +87,7 @@
     .upload-status {
       grid-column: 1 / -1;
       min-height: 1.1rem;
-      font-family: "IBM Plex Mono", monospace;
+      font-family: var(--mono);
       font-size: 0.76rem;
       opacity: 0.82;
     }
@@ -110,7 +113,7 @@
       border: 1px solid var(--line);
       background: rgba(255, 255, 255, 0.95);
       padding: 0.6rem 0.7rem;
-      font-family: "IBM Plex Mono", monospace;
+      font-family: var(--mono);
       font-size: 0.86rem;
       color: #1a1917;
     }
@@ -118,6 +121,15 @@
     textarea { min-height: 74px; resize: vertical; }
 
     .buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.55rem;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .buttons-left,
+    .buttons-right {
       display: flex;
       flex-wrap: wrap;
       gap: 0.55rem;
@@ -143,6 +155,21 @@
 
     button.primary { background: var(--accent-a); color: #fff; border-color: transparent; }
     button.alt { background: var(--accent-b); color: #fff; border-color: transparent; }
+
+    button.icon-btn {
+      background: var(--accent-b);
+      color: #fff;
+      border-color: transparent;
+      width: 2.4rem;
+      height: 2.4rem;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      line-height: 1;
+    }
+    button.icon-btn:hover { background: var(--warn); }
 
     .panels {
       display: grid;
@@ -199,7 +226,7 @@
     }
 
     .meta {
-      font-family: "IBM Plex Mono", monospace;
+      font-family: var(--mono);
       font-size: 0.76rem;
       opacity: 0.9;
     }
@@ -207,7 +234,7 @@
     .step-strip {
       padding: 0.55rem 0.9rem;
       border-bottom: 1px solid var(--line);
-      font-family: "IBM Plex Mono", monospace;
+      font-family: var(--mono);
       font-size: 0.82rem;
       background: rgba(255, 255, 255, 0.55);
     }
@@ -257,7 +284,7 @@
       border: 1px solid var(--line);
       border-radius: 12px;
       padding: 0.62rem 0.85rem;
-      font-family: "IBM Plex Mono", monospace;
+      font-family: var(--mono);
       font-size: 0.82rem;
       white-space: pre-wrap;
     }
@@ -278,7 +305,7 @@
       border-radius: 12px;
       padding: 0.6rem 0.75rem;
       min-height: 92px;
-      font-family: "IBM Plex Mono", monospace;
+      font-family: var(--mono);
       font-size: 0.78rem;
       overflow: auto;
     }
@@ -321,7 +348,7 @@
     }
 
     .skip-meta {
-      font-family: "IBM Plex Mono", monospace;
+      font-family: var(--mono);
       font-size: 0.76rem;
       opacity: 0.88;
     }
@@ -338,7 +365,7 @@
       border-collapse: collapse;
       width: max-content;
       min-width: 100%;
-      font-family: "IBM Plex Mono", monospace;
+      font-family: var(--mono);
       font-size: 0.73rem;
     }
 
@@ -390,7 +417,7 @@
       border: 1px solid var(--line);
       border-radius: 10px;
       padding: 0.6rem 0.75rem;
-      font-family: "IBM Plex Mono", monospace;
+      font-family: var(--mono);
       font-size: 0.8rem;
       white-space: pre-wrap;
       line-height: 1.55;
@@ -407,7 +434,6 @@
       <img class="brand-mark" src="../logoo.png" alt="Medical Term Extractor logo" />
       <div class="brand-text">
         <span class="brand-title">Medical Term Extractor</span>
-        <span class="brand-sub">Aho–Corasick for handwritten prescriptions</span>
       </div>
     </div>
   </header>
@@ -463,29 +489,35 @@
           </div>
           <textarea id="prescription" placeholder="Type a prescription here to extract matching patterns..."></textarea>
         </div>
-        <div class="row">
-          <label class="label" for="text">Text to search</label>
-          <textarea id="text" placeholder="Type the text you want to search here..."></textarea>
-        </div>
-        <div class="row">
-          <label class="label" for="patterns">Patterns (comma-separated)</label>
-          <textarea id="patterns" placeholder="Patterns will appear automatically when the automaton is built."></textarea>
+        <div class="field-stack">
+          <div class="row">
+            <label class="label" for="text">Text to search</label>
+            <textarea id="text" placeholder="Type the text you want to search here..."></textarea>
+          </div>
+          <div class="row">
+            <label class="label" for="patterns">Patterns (comma-separated)</label>
+            <textarea id="patterns" placeholder="Patterns will appear automatically when the automaton is built."></textarea>
+          </div>
         </div>
       </div>
       <div class="buttons" style="margin-top:0.75rem;">
-        <button class="primary" id="buildRun">Run</button>
-        <button id="prevStep">Prev</button>
-        <button id="nextStep">Next</button>
-        <button class="alt" id="playPause">Play</button>
-        <button id="reset">Reset</button>
-        <label class="label" for="speed" style="margin-left:0.35rem;">Speed</label>
-        <select id="speed" style="max-width:170px;">
-          <option value="900">Slow</option>
-          <option value="500" selected>Medium</option>
-          <option value="220">Fast</option>
-        </select>
-        <label class="label" for="benchIterations">Iterations</label>
-        <input id="benchIterations" type="number" min="100" step="100" value="50000" style="max-width:140px;" />
+        <div class="buttons-left">
+          <button class="primary" id="buildRun">Run</button>
+        </div>
+        <div class="buttons-right">
+          <button class="icon-btn" id="prevStep" title="Prev" aria-label="Prev">&laquo;</button>
+          <button class="icon-btn" id="nextStep" title="Next" aria-label="Next">&raquo;</button>
+          <button class="alt" id="playPause">Play</button>
+          <button class="icon-btn" id="reset" title="Reset" aria-label="Reset">&#8635;</button>
+          <label class="label" for="speed" style="margin-left:0.35rem;">Speed</label>
+          <select id="speed" style="max-width:170px;">
+            <option value="900">Slow</option>
+            <option value="500" selected>Medium</option>
+            <option value="220">Fast</option>
+          </select>
+          <label class="label" for="benchIterations">Iterations</label>
+          <input id="benchIterations" type="number" min="100" step="100" value="50000" style="max-width:140px;" />
+        </div>
       </div>
     </section>
 
@@ -881,7 +913,7 @@
               "text-anchor": "middle",
               "font-size": 9,
               fill: "rgba(0,0,0,0.72)",
-              "font-family": "IBM Plex Mono"
+              "font-family": "Times New Roman"
             });
             lbl.textContent = ch === " " ? "SP" : ch;
             svg.appendChild(lbl);
@@ -933,7 +965,7 @@
             "text-anchor": "middle",
             "font-size": 8,
             fill: "#1a1a1a",
-            "font-family": "IBM Plex Mono"
+            "font-family": "Times New Roman"
           });
           txt.textContent = String(node.id);
           svg.appendChild(txt);
@@ -971,7 +1003,7 @@
 
       ui.status.textContent =
         `Text length: ${total} | Step: ${idx + 1}/${total}\n` +
-        `Original fail hops so far: ${o.hopsTotal} | Enhanced fail hops: 0\n` +
+        `Original fail hops: ${o.hopsTotal} \nEnhanced fail hops: 0\n` +
         `Current char: ${charTxt}`;
     }
 
@@ -1023,10 +1055,6 @@
       if (state.benchmarkStarted || state.idx < state.stepsOriginal.length - 1) return;
       state.benchmarkStarted = true;
       ui.status.textContent += "\nTraversal complete.";
-      ui.pyBenchmarkBox.textContent =
-        `Original AC\n  Matches: ${state.matchesOriginal.length}\n  Failure hops: ${state.originalHops}\n\n` +
-        `Enhanced AC\n  Matches: ${state.matchesEnhanced.length}\n  Failure hops: 0\n\n` +
-        "Enhanced advantage: precomputed skip-table transitions.";
       runPythonBenchmarkMode();
     }
 

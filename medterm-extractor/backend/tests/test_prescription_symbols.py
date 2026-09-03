@@ -67,6 +67,16 @@ def test_hash_symbol_absorbs_adjacent_quantity_in_either_order():
     assert {hit["term"] for hit in engine.search("#9 9#")} >= {"#9", "9#"}
 
 
+def test_mg_unit_is_detected_as_an_abbreviation_from_dosage_tokens():
+    engine = build_engine()
+
+    hits = engine.search("Imoflox 200mg tablet #19")
+    terms = {hit["term"] for hit in hits}
+
+    assert "200MG" in terms
+    assert "MG" in terms
+
+
 def test_meal_marker_glyphs_become_one_ascii_marker_group():
     engine = build_engine()
 
