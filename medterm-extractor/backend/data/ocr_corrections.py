@@ -242,7 +242,7 @@ OCR_CORRECTIONS = [
     # NOISE / FORMATTING FIXES  (run first)
     # ══════════════════════════════════════════════════════════════════════
 
-    (r'\b[)1l4]\s*[)1l]?moflex\b',               'Imoflox',       re.IGNORECASE),
+    (r'\b[)1l4]\s*[)1l]?moflex\b',               'Inoflox',       re.IGNORECASE),
 
     (r'^[\d)\s]+(?=[A-Za-z])(?![\s]*days?\b)',   '',              re.MULTILINE),
 
@@ -317,14 +317,14 @@ OCR_CORRECTIONS = [
 
     (r'\b20Ding\b',                              '200mg',         re.IGNORECASE),
     (r'\b20[D0O][a-z]+\b',                       '200mg',         re.IGNORECASE),
-    (r'\bDinsfield\b',                           'Imoflox',       re.IGNORECASE),
-    (r'\bImo[f]?[l1][o0]x\b',                    'Imoflox',       re.IGNORECASE),
-    (r'\bIm[o0]fl[o0]x\b',                       'Imoflox',       re.IGNORECASE),
-    (r'\bIm[o0][f]?l[o0][xks]\b',                'Imoflox',       re.IGNORECASE),
-    (r'\blm[o0]fl[o0]x\b',                       'Imoflox',       re.IGNORECASE),
-    (r'\bImofl[o0]ck[s]?\b',                     'Imoflox',       re.IGNORECASE),
+    (r'\bDinsfield\b',                           'Inoflox',       re.IGNORECASE),
+    (r'\bImo[f]?[l1][o0]x\b',                    'Inoflox',       re.IGNORECASE),
+    (r'\bIm[o0]fl[o0]x\b',                       'Inoflox',       re.IGNORECASE),
+    (r'\bIm[o0][f]?l[o0][xks]\b',                'Inoflox',       re.IGNORECASE),
+    (r'\blm[o0]fl[o0]x\b',                       'Inoflox',       re.IGNORECASE),
+    (r'\bImofl[o0]ck[s]?\b',                     'Inoflox',       re.IGNORECASE),
     # TrOCR sometimes drops the leading "I" entirely -> "moflux"/"moflex"
-    (r'\bm[o0]fl[uo][xks]\b',                    'Imoflox',       re.IGNORECASE),
+    (r'\bm[o0]fl[uo][xks]\b',                    'Inoflox',       re.IGNORECASE),
 
     (r'\bin\s+Point\b',                          'Dolcet',        re.IGNORECASE),
     (r'\bin\s+Polish\b',                         'Dolcet',        re.IGNORECASE),
@@ -340,8 +340,9 @@ OCR_CORRECTIONS = [
     (r'(?im)^\s*[M1-9][.)]\s*(?=Dolcet\b)',       '',              0),
     (r'(Dolcet\s+tablet)\s+#(?!9)\d+\b',         r'\1 #9',        re.IGNORECASE),
 
-    # ── Imoflox 200mg tablet #19 / Dolcet sample: alternate garble run ──
-    # e.g. raw TrOCR output: "moflux 200mg today # ( 9." for the Imoflox
+
+    # ── Inoflox 200mg tablet #19 / Dolcet sample: alternate garble run ──
+    # e.g. raw TrOCR output: "moflux 200mg today # ( 9." for the Inoflox
     # line (missing the leading "I", "tablet" misread as "today", and the
     # quantity "#19" misread as "# ( 9."), and "greaty kit to dry as
     # member ." for the second Sig line ("Sig: 3x a day as needed").
@@ -442,7 +443,7 @@ def apply_ocr_corrections(text: str) -> str:
 def hardcoded_cleanup(text: str) -> str:
     """
     Final targeted cleanup pass for the sample prescription
-    (Imoflox / Dolcet / Celecoxib), run after apply_ocr_corrections.
+    (Inoflox / Dolcet / Celecoxib), run after apply_ocr_corrections.
     Fixes a few specific residual misreads that are easier to handle as
     one-off string substitutions than as part of the general pattern list.
     """

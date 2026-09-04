@@ -935,19 +935,17 @@
           });
           svg.appendChild(line);
 
-          if (nodes.length <= 65) {
-            const tx = (a.x + b.x) / 2;
-            const ty = (a.y + b.y) / 2;
-            const lbl = svgEl("text", {
-              x: tx, y: ty - 4,
-              "text-anchor": "middle",
-              "font-size": 9,
-              fill: "rgba(0,0,0,0.72)",
-              "font-family": "Times New Roman"
-            });
-            lbl.textContent = ch === " " ? "SP" : ch;
-            svg.appendChild(lbl);
-          }
+          const tx = (a.x + b.x) / 2;
+          const ty = (a.y + b.y) / 2;
+          const lbl = svgEl("text", {
+            x: tx, y: ty - 4,
+            "text-anchor": "middle",
+            "font-size": 9,
+            fill: "rgba(0,0,0,0.72)",
+            "font-family": "Times New Roman"
+          });
+          lbl.textContent = ch === " " ? "SP" : ch;
+          svg.appendChild(lbl);
         }
       }
 
@@ -988,18 +986,16 @@
         });
         svg.appendChild(circle);
 
-        if (nodes.length <= 120) {
-          const txt = svgEl("text", {
-            x: p.x,
-            y: p.y + 3,
-            "text-anchor": "middle",
-            "font-size": 8,
-            fill: "#1a1a1a",
-            "font-family": "Times New Roman"
-          });
-          txt.textContent = String(node.id);
-          svg.appendChild(txt);
-        }
+        const txt = svgEl("text", {
+          x: p.x,
+          y: p.y + 3,
+          "text-anchor": "middle",
+          "font-size": 8,
+          fill: "#1a1a1a",
+          "font-family": "Times New Roman"
+        });
+        txt.textContent = String(node.id);
+        svg.appendChild(txt);
       }
     }
 
@@ -1054,7 +1050,7 @@
       }
       ui.skipTableBox.innerHTML =
         `<table class="skip-table"><thead><tr><th>State</th>${headCols}</tr></thead><tbody>${body}</tbody></table>`;
-      ui.skipMeta.textContent = `states=${nodes.length}, alphabet=${SIGMA.length}, totalCells=${nodes.length * SIGMA.length}`;
+      ui.skipMeta.textContent = `states=${nodes.length}, Characters=${SIGMA.length}, totalCells=${nodes.length * SIGMA.length}`;
     }
 
     ui.downloadSkipPdf.addEventListener("click", () => {
@@ -1213,12 +1209,10 @@
         ui.pyBenchmarkBox.textContent =
           `Normalized text: ${data.normalized_text}\n\n` +
           `Original AC\n` +
-          `  Nodes: ${o.nodes}\n` +
           `  Build time: ${o.build_time_ms} ms\n` +
           `  Average search: ${o.avg_time_us} us/run\n` +
           `  Failure hops: ${o.failure_hops}\n\n` +
           `Enhanced AC\n` +
-          `  Nodes: ${e.nodes}\n` +
           `  Build time: ${e.build_time_ms} ms\n` +
           `  Average search: ${e.avg_time_us} us/run\n` +
           `  Failure hops: ${e.failure_hops}\n\n` +

@@ -205,7 +205,7 @@ def benchmark():
 
     t_orig = time_it(lambda t: bench_original.search(t))
     t_enh = time_it(lambda t: bench_enhanced.search(t))
-    speedup = (t_orig / t_enh) if t_enh > 0 else None
+    speedup = (t_orig / t_enh) if t_enh > 0 else None #  e.g. 3.10x FASTER 
 
     return jsonify({
         "normalized_text": norm_text,
@@ -213,15 +213,15 @@ def benchmark():
         "pattern_count": len(BENCH_PATTERNS),
         "original": {
             "nodes": len(bench_original.nodes),
-            "build_time_ms": round(bench_original.build_time * 1000, 3),
-            "avg_time_us": round(t_orig * 1_000_000, 3),
+            "build_time_ms": round(bench_original.build_time * 1000, 3), #e.g. 0.497ms seconds -> milliseconds rounded to 3 decimal places
+            "avg_time_us": round(t_orig * 1_000_000, 3),  # e.g. 19.437
             "failure_hops": orig_hops,
             "hits": [{"term": p, "start": s, "end": e} for p, s, e in sorted(orig_hits, key=lambda h: h[1])],
         },
         "enhanced": {
             "nodes": len(bench_enhanced.nodes),
             "build_time_ms": round(bench_enhanced.build_time * 1000, 3),
-            "avg_time_us": round(t_enh * 1_000_000, 3),
+            "avg_time_us": round(t_enh * 1_000_000, 3),  # e.g. 6.277
             "failure_hops": 0,
             "hits": [{"term": p, "start": s, "end": e} for p, s, e in sorted(enh_hits, key=lambda h: h[1])],
         },
