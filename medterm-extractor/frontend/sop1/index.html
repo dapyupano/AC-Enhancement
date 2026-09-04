@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Aho-Corasick Side-by-Side Visualizer</title>
   <link rel="stylesheet" href="../style.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
   <style>
     :root {
       --bg-1: #f7f4ec;
@@ -179,7 +181,7 @@
 
     .analysis-layout {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(270px, 360px);
+      grid-template-columns: 1fr;
       gap: 0.9rem;
       align-items: start;
     }
@@ -187,19 +189,7 @@
     .results-column {
       display: grid;
       gap: 0.8rem;
-      position: sticky;
-      top: 1rem;
-    }
-
-    @media (min-width: 1120px) {
-      .panels {
-        grid-template-columns: 1fr 1fr;
-      }
-    }
-
-    @media (max-width: 900px) {
-      .analysis-layout { grid-template-columns: 1fr; }
-      .results-column { position: static; }
+      position: static;
     }
 
     .panel {
@@ -423,6 +413,44 @@
       line-height: 1.55;
       overflow-wrap: anywhere;
     }
+
+    @media print {
+      @page { size: landscape; margin: 10mm; }
+
+      body.print-skip-table > * {
+        display: none !important;
+      }
+
+      body.print-skip-table .main-col,
+      body.print-skip-table .page-body,
+      body.print-skip-table .wrap,
+      body.print-skip-table .skip-wrap {
+        display: block !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        background: #fff !important;
+      }
+
+      body.print-skip-table .wrap > *:not(.skip-wrap),
+      body.print-skip-table .skip-head button,
+      body.print-skip-table .skip-note {
+        display: none !important;
+      }
+
+      body.print-skip-table .skip-table-box {
+        max-height: none !important;
+        overflow: visible !important;
+        border: 0 !important;
+      }
+
+      body.print-skip-table table.skip-table {
+        width: 100% !important;
+        table-layout: fixed;
+        font-size: 6px;
+      }
+    }
   </style>
   <style>
     .page-body { flex: 1; min-width: 0; overflow-x: hidden; background: #f2f4f8; }
@@ -568,6 +596,7 @@
       <div class="skip-head">
         <div class="skip-title">Precomputed Skip Table</div>
         <div class="skip-meta" id="skipMeta">Build automaton to generate table.</div>
+        <button id="downloadSkipPdf" type="button" title="Download skip table as PDF">Download PDF</button>
       </div>
       <div class="skip-table-box" id="skipTableBox">No table yet.</div>
       <div class="skip-note">Each cell is next_state for the character column: skip[state][char] -&gt; next_state.</div>
@@ -602,6 +631,7 @@
       metaEnhanced: document.getElementById("metaEnhanced"),
       skipMeta: document.getElementById("skipMeta"),
       skipTableBox: document.getElementById("skipTableBox"),
+      downloadSkipPdf: document.getElementById("downloadSkipPdf"),
       pyBenchmarkBox: document.getElementById("pyBenchmarkBox"),
       svgOriginal: document.getElementById("svgOriginal"),
       svgEnhanced: document.getElementById("svgEnhanced"),
@@ -616,7 +646,8 @@
     }
 
     const state = {
-      automaton: null,
+      automatonOriginal: null,
+      automatonEnhanced: null,
       stepsOriginal: [],
       stepsEnhanced: [],
       matchesOriginal: [],
@@ -642,11 +673,11 @@
       return Array.from(new Set(parts));
     }
 
-    async function discoverPatterns(text) {
+    async function discoverPatterns(text, mode) {
       const response = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, mode: "enhanced" })
+        body: JSON.stringify({ text, mode })
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Pattern extraction failed.");
@@ -654,7 +685,6 @@
       const found = Array.from(new Set(
         (data.matches || []).map(match => match.matched_dictionary_term || match.term).filter(Boolean)
       ));
-      ui.patterns.value = found.join(", ");
       return found;
     }
 
@@ -982,8 +1012,8 @@
       ui.progressFill.style.width = `${Math.min(100, Math.max(0, progress))}%`;
 
       if (!hasStep) {
-        drawGraph(ui.svgOriginal, state.automaton, { current: 0, failNodes: [] });
-        drawGraph(ui.svgEnhanced, state.automaton, { current: 0, failNodes: [] });
+        drawGraph(ui.svgOriginal, state.automatonOriginal, { current: 0, failNodes: [] });
+        drawGraph(ui.svgEnhanced, state.automatonEnhanced, { current: 0, failNodes: [] });
         ui.stepOriginal.textContent = "Step: -";
         ui.stepEnhanced.textContent = "Step: -";
         return;
@@ -992,8 +1022,8 @@
       const o = state.stepsOriginal[idx];
       const e = state.stepsEnhanced[idx];
 
-      drawGraph(ui.svgOriginal, state.automaton, { current: o.to, failNodes: o.fails });
-      drawGraph(ui.svgEnhanced, state.automaton, { current: e.to, failNodes: [] });
+      drawGraph(ui.svgOriginal, state.automatonOriginal, { current: o.to, failNodes: o.fails });
+      drawGraph(ui.svgEnhanced, state.automatonEnhanced, { current: e.to, failNodes: [] });
 
       const charTxt = o.ch === " " ? "[space]" : o.ch;
       ui.stepOriginal.textContent =
@@ -1003,7 +1033,6 @@
 
       ui.status.textContent =
         `Text length: ${total} | Step: ${idx + 1}/${total}\n` +
-        `Original fail hops: ${o.hopsTotal} \nEnhanced fail hops: 0\n` +
         `Current char: ${charTxt}`;
     }
 
@@ -1027,6 +1056,37 @@
         `<table class="skip-table"><thead><tr><th>State</th>${headCols}</tr></thead><tbody>${body}</tbody></table>`;
       ui.skipMeta.textContent = `states=${nodes.length}, alphabet=${SIGMA.length}, totalCells=${nodes.length * SIGMA.length}`;
     }
+
+    ui.downloadSkipPdf.addEventListener("click", () => {
+      const table = ui.skipTableBox.querySelector("table");
+      if (!table) {
+        ui.status.textContent = "Build the automaton before downloading the skip table.";
+        return;
+      }
+
+      if (!window.jspdf || !window.jspdf.jsPDF || typeof window.jspdf.jsPDF.API.autoTable !== "function") {
+        ui.status.textContent = "PDF library failed to load. Check your internet connection and try again.";
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+      doc.setFontSize(14);
+      doc.text("Precomputed Skip Table", 28, 28);
+      doc.setFontSize(8);
+      doc.text(ui.skipMeta.textContent, 28, 42);
+      doc.autoTable({
+        html: table,
+        startY: 52,
+        theme: "grid",
+        styles: { font: "courier", fontSize: 5, cellPadding: 2, halign: "center" },
+        headStyles: { fillColor: [245, 239, 224], textColor: [30, 26, 19] },
+        horizontalPageBreak: true,
+        horizontalPageBreakRepeat: 1,
+        margin: { left: 28, right: 28 }
+      });
+      doc.save(`precomputed-skip-table-${new Date().toISOString().slice(0, 10)}.pdf`);
+    });
 
     function stopPlay() {
       if (state.timer) {
@@ -1062,26 +1122,28 @@
       stopPlay();
       ui.pyBenchmarkBox.textContent = "Simulation running... comparative results will appear when the progress bar is complete.";
 
-      let patterns = parsePatterns(ui.patterns.value);
+      let baselinePatterns = parsePatterns(ui.patterns.value);
+      let enhancedPatterns = baselinePatterns;
       let text = normalizeText(ui.text.value);
 
       if (ui.prescription.value.trim()) {
         ui.status.textContent = "Finding dictionary patterns from the prescription...";
         try {
           const prescriptionText = normalizeText(ui.prescription.value);
-          await discoverPatterns(prescriptionText);
+          baselinePatterns = await discoverPatterns(prescriptionText, "original");
+          enhancedPatterns = await discoverPatterns(prescriptionText, "enhanced");
+          ui.patterns.value = enhancedPatterns.join(", ");
           if (!text) {
             ui.text.value = prescriptionText;
             text = prescriptionText;
           }
-          patterns = parsePatterns(ui.patterns.value);
         } catch (err) {
           ui.status.textContent = `Pattern extraction failed: ${err.message}`;
           return;
         }
       }
 
-      if (!patterns.length) {
+      if (!baselinePatterns.length && !enhancedPatterns.length) {
         ui.status.textContent = "No patterns found. Upload or type a prescription first.";
         return;
       }
@@ -1092,14 +1154,16 @@
       }
 
       const t0 = performance.now();
-      const automaton = buildAutomaton(patterns);
+      const automatonOriginal = buildAutomaton(baselinePatterns);
+      const automatonEnhanced = buildAutomaton(enhancedPatterns);
       const t1 = performance.now();
-      const simO = simulateOriginal(automaton, text);
+      const simO = simulateOriginal(automatonOriginal, text);
       const t2 = performance.now();
-      const simE = simulateEnhanced(automaton, text);
+      const simE = simulateEnhanced(automatonEnhanced, text);
       const t3 = performance.now();
 
-      state.automaton = automaton;
+      state.automatonOriginal = automatonOriginal;
+      state.automatonEnhanced = automatonEnhanced;
       state.stepsOriginal = simO.steps;
       state.stepsEnhanced = simE.steps;
       state.matchesOriginal = simO.matches;
@@ -1108,13 +1172,13 @@
       state.idx = -1;
       state.benchmarkStarted = false;
 
-      ui.metaOriginal.textContent = `nodes=${automaton.nodes.length} | build=${(t1 - t0).toFixed(2)}ms | run=${(t2 - t1).toFixed(2)}ms`;
-      ui.metaEnhanced.textContent = `nodes=${automaton.nodes.length} | skipReady=yes | run=${(t3 - t2).toFixed(2)}ms`;
+      ui.metaOriginal.textContent = `nodes=${automatonOriginal.nodes.length} | patterns=${baselinePatterns.length} | build=${(t1 - t0).toFixed(2)}ms | run=${(t2 - t1).toFixed(2)}ms`;
+      ui.metaEnhanced.textContent = `nodes=${automatonEnhanced.nodes.length} | patterns=${enhancedPatterns.length} | skipReady=yes | run=${(t3 - t2).toFixed(2)}ms`;
 
-      renderSkipTable(automaton);
+      renderSkipTable(automatonEnhanced);
 
       ui.status.textContent =
-        `Automaton built with ${automaton.nodes.length} nodes.\n` +
+        `Baseline patterns: ${baselinePatterns.length} exact; enhanced patterns: ${enhancedPatterns.length}.\n` +
         `Original total failure hops: ${simO.hopsTotal}.\n` +
         `Enhanced uses precomputed skip table transitions only.`;
 
@@ -1147,21 +1211,17 @@
         const factor = data.speedup ? (data.speedup >= 1 ? data.speedup : 1 / data.speedup) : null;
 
         ui.pyBenchmarkBox.textContent =
-          `Patterns: ${data.pattern_count}\n` +
-          `Iterations: ${data.iterations}\n` +
           `Normalized text: ${data.normalized_text}\n\n` +
           `Original AC\n` +
           `  Nodes: ${o.nodes}\n` +
           `  Build time: ${o.build_time_ms} ms\n` +
           `  Average search: ${o.avg_time_us} us/run\n` +
-          `  Failure hops: ${o.failure_hops}\n` +
-          `  Matches: ${o.hits.length}\n\n` +
+          `  Failure hops: ${o.failure_hops}\n\n` +
           `Enhanced AC\n` +
           `  Nodes: ${e.nodes}\n` +
           `  Build time: ${e.build_time_ms} ms\n` +
           `  Average search: ${e.avg_time_us} us/run\n` +
-          `  Failure hops: ${e.failure_hops}\n` +
-          `  Matches: ${e.hits.length}\n\n` +
+          `  Failure hops: ${e.failure_hops}\n\n` +
           (factor ? `${winner} is ${factor.toFixed(2)}x faster.` : "");
       } catch (err) {
         ui.pyBenchmarkBox.textContent += `\n\nBackend timing unavailable: ${err.message}`;
@@ -1200,14 +1260,15 @@
     });
 
     window.addEventListener("resize", () => {
-      if (!state.automaton) return;
+      if (!state.automatonOriginal || !state.automatonEnhanced) return;
       renderStep();
     });
 
     function clearResultsIfTextDeleted() {
       if (ui.text.value.trim() || ui.prescription.value.trim()) return;
       stopPlay();
-      state.automaton = null;
+      state.automatonOriginal = null;
+      state.automatonEnhanced = null;
       state.stepsOriginal = [];
       state.stepsEnhanced = [];
       state.matchesOriginal = [];
