@@ -5,6 +5,7 @@ from data.context_data import (
     AMBIGUOUS_TERMS,
     NEGATIVE_CONTEXT,
     POSITIVE_CONTEXT,
+    AMBIGUOUS_MEANINGS,
     HOT_STATE_THRESHOLD,
     CONTEXT_WINDOW_K,
 )
@@ -19,6 +20,7 @@ def build_engine():
         ambiguous_terms=AMBIGUOUS_TERMS,
         negative_context=NEGATIVE_CONTEXT,
         positive_context=POSITIVE_CONTEXT,
+        ambiguous_meanings=AMBIGUOUS_MEANINGS,
         hot_threshold=HOT_STATE_THRESHOLD,
         context_window_k=CONTEXT_WINDOW_K,
     )
@@ -75,6 +77,14 @@ def test_mg_unit_is_detected_as_an_abbreviation_from_dosage_tokens():
 
     assert "200MG" in terms
     assert "MG" in terms
+
+
+def test_ocr_typo_is_detected_as_a_fuzzy_match():
+    engine = build_engine()
+
+    fuzzy_hits = [hit for hit in engine.search("moflox") if hit["match_type"] == "fuzzy"]
+
+    assert any(hit["matched"] == "IMOFLOX" for hit in fuzzy_hits)
 
 
 def test_meal_marker_glyphs_become_one_ascii_marker_group():

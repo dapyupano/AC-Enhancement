@@ -523,8 +523,12 @@
             <textarea id="text" placeholder="Type the text you want to search here..."></textarea>
           </div>
           <div class="row">
-            <label class="label" for="patterns">Patterns (comma-separated)</label>
-            <textarea id="patterns" placeholder="Patterns will appear automatically when the automaton is built."></textarea>
+            <label class="label" for="patternsOriginal">Baseline detected patterns</label>
+            <textarea id="patternsOriginal" placeholder="Baseline AC matches will appear here." readonly></textarea>
+          </div>
+          <div class="row">
+            <label class="label" for="patternsEnhanced">Enhanced detected patterns</label>
+            <textarea id="patternsEnhanced" placeholder="Enhanced AC matches will appear here." readonly></textarea>
           </div>
         </div>
       </div>
@@ -562,7 +566,7 @@
         <div class="canvas-wrap"><svg id="svgOriginal"></svg></div>
         <div class="legend">
           <span><span class="dot" style="background:#2a9d8f"></span>Current state</span>
-          <span><span class="dot" style="background:#e9c46a"></span>Output state</span>
+          <span><span class="dot" style="background:#e9c46a"></span>End state</span>
           <span><span class="dot" style="background:#e76f51"></span>Failure fallback used</span>
         </div>
         </article>
@@ -576,7 +580,7 @@
         <div class="canvas-wrap"><svg id="svgEnhanced"></svg></div>
         <div class="legend">
           <span><span class="dot" style="background:#2a9d8f"></span>Current state</span>
-          <span><span class="dot" style="background:#e9c46a"></span>Output state</span>
+          <span><span class="dot" style="background:#e9c46a"></span>End state</span>
           <span><span class="dot" style="background:#006d77"></span>Direct precomputed transition</span>
         </div>
         </article>
@@ -615,7 +619,8 @@
       prescriptionImage: document.getElementById("prescriptionImage"),
       extractImage: document.getElementById("extractImage"),
       uploadStatus: document.getElementById("uploadStatus"),
-      patterns: document.getElementById("patterns"),
+      patternsOriginal: document.getElementById("patternsOriginal"),
+      patternsEnhanced: document.getElementById("patternsEnhanced"),
       text: document.getElementById("text"),
       buildRun: document.getElementById("buildRun"),
       benchIterations: document.getElementById("benchIterations"),
@@ -944,7 +949,7 @@
             fill: "rgba(0,0,0,0.72)",
             "font-family": "Times New Roman"
           });
-          lbl.textContent = ch === " " ? "SP" : ch;
+          lbl.textContent = ch;
           svg.appendChild(lbl);
         }
       }
@@ -1118,8 +1123,8 @@
       stopPlay();
       ui.pyBenchmarkBox.textContent = "Simulation running... comparative results will appear when the progress bar is complete.";
 
-      let baselinePatterns = parsePatterns(ui.patterns.value);
-      let enhancedPatterns = baselinePatterns;
+      let baselinePatterns = parsePatterns(ui.patternsOriginal.value);
+      let enhancedPatterns = parsePatterns(ui.patternsEnhanced.value);
       let text = normalizeText(ui.text.value);
 
       if (ui.prescription.value.trim()) {
@@ -1128,7 +1133,8 @@
           const prescriptionText = normalizeText(ui.prescription.value);
           baselinePatterns = await discoverPatterns(prescriptionText, "original");
           enhancedPatterns = await discoverPatterns(prescriptionText, "enhanced");
-          ui.patterns.value = enhancedPatterns.join(", ");
+          ui.patternsOriginal.value = baselinePatterns.join(", ");
+          ui.patternsEnhanced.value = enhancedPatterns.join(", ");
           if (!text) {
             ui.text.value = prescriptionText;
             text = prescriptionText;

@@ -134,10 +134,8 @@ class OriginalAhoCorasick:
             if state.output:
                 for p in state.output:
                     start = i - len(p) + 1
-                    category, meaning = self.term_lookup.get(p, ("", ""))
                     hits.append({
                         "term": p,
-                        "category": category,
                         "start": start,
                         "end": i + 1,
                     })

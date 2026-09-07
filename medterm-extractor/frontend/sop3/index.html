@@ -78,8 +78,8 @@ const speedControl = $('speed');
 const INITIAL_STATUS = 'SOP 3 compares full-alphabet transition rows with hot dense states and cold sparse states to reduce storage.';
 function addFigureLegends() {
   const legends = [
-    ['osvg', '<span style="color:#3978a8">●</span> Full alphabet / dense row<br><span style="color:#c65f3d">●</span> Current state being visited'],
-    ['esvg', '<span style="color:#c0392b">●</span> Hot dense state<br><span style="color:#3978a8">●</span> Cold sparse state<br><span style="color:#c65f3d">●</span> Current state being visited']
+    ['osvg', '<span style="color:#929292">●</span> Original insertion-order state<br><span style="color:#e9c46a">●</span> End state<br><span style="color:#2a9d8f">●</span> Current state being visited'],
+    ['esvg', '<span style="color:#176b63">●</span> Hot dense state<br><span style="color:#ffffff">●</span> Cold sparse state<br><span style="color:#e9c46a">●</span> End state<br><span style="color:#2a9d8f">●</span> Current state being visited']
   ];
   legends.forEach(([svgId, content]) => {
     const svg = $(svgId);
@@ -190,8 +190,8 @@ function computeStorageSummary(trieNodes, alphabetSize) {
 
 function drawNodeGraph(svg, trieNodes, currentId, highlightHot) {
   svg.innerHTML = '';
-  const width = Math.max(720, trieNodes.length * 50);
-  const height = 390;
+  const width = Math.max(1000, svg.clientWidth || 1000);
+  const height = Math.max(420, trieNodes.length * 4);
   svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
 
   const pos = new Map();
@@ -203,16 +203,20 @@ function drawNodeGraph(svg, trieNodes, currentId, highlightHot) {
 
   const maxDepth = Math.max(...[...layers.keys()], 0);
   [...layers.entries()].sort((a, b) => a[0] - b[0]).forEach(([depth, nodesAtDepth]) => {
-    const x = 40 + (depth / Math.max(1, maxDepth)) * (width - 120);
-    const startY = 60;
-    const step = nodesAtDepth.length > 1 ? (height - 120) / (nodesAtDepth.length - 1) : 0;
-    nodesAtDepth.forEach((node, idx) => {
+    const orderedNodes = highlightHot
+      ? [...nodesAtDepth].sort((a, b) => b.children.size - a.children.size || a.id - b.id)
+      : nodesAtDepth;
+    const xSpan = Math.max(180, width - 144);
+    const x = maxDepth === 0 ? width / 2 : 72 + (depth / maxDepth) * xSpan;
+    const startY = 56;
+    const step = orderedNodes.length > 1 ? Math.max(180, height - 112) / (orderedNodes.length - 1) : 0;
+    orderedNodes.forEach((node, idx) => {
       pos.set(node.id, { x, y: startY + idx * step });
     });
   });
 
   for (const node of trieNodes) {
-    for (const childId of node.children.values()) {
+    for (const [ch, childId] of node.children) {
       const from = pos.get(node.id);
       const to = pos.get(childId);
       if (!from || !to) continue;
@@ -221,9 +225,19 @@ function drawNodeGraph(svg, trieNodes, currentId, highlightHot) {
       line.setAttribute('y1', from.y);
       line.setAttribute('x2', to.x);
       line.setAttribute('y2', to.y);
-      line.setAttribute('stroke', '#ccbca0');
-      line.setAttribute('stroke-width', '1.3');
+      line.setAttribute('stroke', '#c5c5c5');
+      line.setAttribute('stroke-width', '1.8');
       svg.appendChild(line);
+
+      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      label.setAttribute('x', (from.x + to.x) / 2);
+      label.setAttribute('y', (from.y + to.y) / 2 - 4);
+      label.setAttribute('text-anchor', 'middle');
+      label.setAttribute('font-size', '12');
+      label.setAttribute('fill', '#17365d');
+      label.setAttribute('font-family', 'Times New Roman');
+      label.textContent = ch;
+      svg.appendChild(label);
     }
   }
 
@@ -231,26 +245,26 @@ function drawNodeGraph(svg, trieNodes, currentId, highlightHot) {
     const p = pos.get(node.id);
     const isCurrent = node.id === currentId;
     const isHot = node.children.size >= THETA;
-    const fill = isCurrent ? '#c65f3d' : (highlightHot ? (isHot ? '#c0392b' : '#dfeaf5') : '#dfeaf5');
-    const stroke = isCurrent ? '#8b3d2a' : (highlightHot ? (isHot ? '#c0392b' : '#3978a8') : '#3978a8');
+    const isEnd = node.output && node.output.length > 0;
+    const fill = isCurrent ? '#2a9d8f' : (isEnd ? '#e9c46a' : (highlightHot && isHot ? '#d7eee9' : '#ffffff'));
+    const stroke = isCurrent ? '#196359' : (isEnd ? '#9c7a2f' : (highlightHot && isHot ? '#176b63' : '#929292'));
 
     const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
     circle.setAttribute('cx', p.x);
     circle.setAttribute('cy', p.y);
-    circle.setAttribute('r', isCurrent ? 13 : 10);
+    circle.setAttribute('r', isCurrent ? 20 : 16);
     circle.setAttribute('fill', fill);
     circle.setAttribute('stroke', stroke);
-    circle.setAttribute('stroke-width', '1.8');
+    circle.setAttribute('stroke-width', '2.4');
     svg.appendChild(circle);
 
     const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     text.setAttribute('x', p.x);
     text.setAttribute('y', p.y + 3);
-    text.setAttribute('font-size', '8');
+    text.setAttribute('font-size', '11');
     text.setAttribute('text-anchor', 'middle');
     text.setAttribute('fill', '#1a1a1a');
     text.setAttribute('font-family', 'Times New Roman');
-    text.setAttribute('font-weight', '700');
     text.textContent = String(node.id);
     svg.appendChild(text);
   }

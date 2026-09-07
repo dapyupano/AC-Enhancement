@@ -79,8 +79,8 @@ const $ = id => document.getElementById(id);
 const INITIAL_STATUS = 'SOP 2 compares scattered insertion-order nodes with a contiguous two-pass BFS layout to improve memory locality.';
 function addFigureLegends() {
   const legends = [
-    ['osvg', '<span style="color:#3978a8">●</span> Original insertion-order state<br><span style="color:#c65f3d">●</span> Current state being visited'],
-    ['esvg', '<span style="color:#176b63">●</span> Enhanced BFS state<br><span style="color:#c65f3d">●</span> Current state being visited']
+    ['osvg', '<span style="color:#929292">●</span> Trie state<br><span style="color:#e9c46a">●</span> End state<br><span style="color:#2a9d8f">●</span> Current state being visited'],
+    ['esvg', '<span style="color:#929292">●</span> Trie state<br><span style="color:#e9c46a">●</span> End state<br><span style="color:#2a9d8f">●</span> Current state being visited']
   ];
   legends.forEach(([svgId, content]) => {
     const svg = $(svgId);
@@ -193,14 +193,16 @@ function computeBfsOrder(trieNodes) {
     id: idx,
     oldId: node.id,
     depth: node.depth,
-    children: node.children.map(([ch, childId]) => [ch, remap.get(childId)])
+    children: node.children.map(([ch, childId]) => [ch, remap.get(childId)]),
+    output: trieNodes[node.id].output
   }));
 
   const original = trieNodes.map((node, idx) => ({
     id: idx,
     oldId: idx,
     depth: node.depth,
-    children: [...node.children.entries()].map(([ch, childId]) => [ch, childId])
+    children: [...node.children.entries()].map(([ch, childId]) => [ch, childId]),
+    output: node.output
   }));
 
   const originalGap = computeLocality(original);
@@ -233,9 +235,8 @@ function computeLocality(layout) {
 
 function drawNodeGraph(svg, layout, highlightId, mode) {
   svg.innerHTML = '';
-  const maxDepth = Math.max(...layout.map(n => n.depth), 0);
-  const width = Math.max(700, maxDepth * 110 + 120);
-  const height = 380;
+  const width = Math.max(1000, svg.clientWidth || 1000);
+  const height = Math.max(420, layout.length * 4);
   svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
 
   const pos = new Map();
@@ -245,10 +246,12 @@ function drawNodeGraph(svg, layout, highlightId, mode) {
     layerMap.get(node.depth).push(node);
   }
 
+  const maxDepth = Math.max(...layout.map(node => node.depth), 0);
   for (const [depth, nodesInLayer] of [...layerMap.entries()].sort((a, b) => a[0] - b[0])) {
-    const xBase = 40 + (depth / Math.max(1, maxDepth)) * (width - 120);
-    const yStart = 50;
-    const spacing = nodesInLayer.length > 1 ? (height - 100) / (nodesInLayer.length - 1) : 0;
+    const xSpan = Math.max(180, width - 144);
+    const xBase = maxDepth === 0 ? width / 2 : 72 + (depth / maxDepth) * xSpan;
+    const yStart = 56;
+    const spacing = nodesInLayer.length > 1 ? Math.max(180, height - 112) / (nodesInLayer.length - 1) : 0;
     nodesInLayer.forEach((node, idx) => {
       const x = xBase;
       const y = yStart + idx * spacing;
@@ -266,19 +269,18 @@ function drawNodeGraph(svg, layout, highlightId, mode) {
       line.setAttribute('y1', from.y);
       line.setAttribute('x2', to.x);
       line.setAttribute('y2', to.y);
-      line.setAttribute('stroke', '#9bb7b2');
-      line.setAttribute('stroke-width', '1.3');
+      line.setAttribute('stroke', '#c5c5c5');
+      line.setAttribute('stroke-width', '1.8');
       svg.appendChild(line);
 
       const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       label.setAttribute('x', (from.x + to.x) / 2);
       label.setAttribute('y', (from.y + to.y) / 2 - 4);
       label.setAttribute('text-anchor', 'middle');
-      label.setAttribute('font-size', '8');
-      label.setAttribute('fill', '#3b4a47');
+      label.setAttribute('font-size', '12');
+      label.setAttribute('fill', '#17365d');
       label.setAttribute('font-family', 'Times New Roman');
-      label.setAttribute('font-weight', '700');
-      label.textContent = ch === ' ' ? 'SP' : ch;
+      label.textContent = ch;
       svg.appendChild(label);
     }
   }
@@ -287,23 +289,22 @@ function drawNodeGraph(svg, layout, highlightId, mode) {
     const point = pos.get(node.id);
     const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
     const isCurrent = node.id === highlightId;
+    const isEnd = node.output && node.output.length > 0;
     circle.setAttribute('cx', point.x);
     circle.setAttribute('cy', point.y);
-    circle.setAttribute('r', isCurrent ? 13 : 10);
-    const isHot = mode === 'enhanced' && node.children.length >= 4;
-    circle.setAttribute('fill', mode === 'enhanced' ? (isCurrent ? '#c65f3d' : (isHot ? '#176b63' : '#f5c7ae')) : (isCurrent ? '#c65f3d' : '#dfeaf5'));
-    circle.setAttribute('stroke', mode === 'enhanced' ? (isCurrent ? '#8b3d2a' : (isHot ? '#176b63' : '#c65f3d')) : (isCurrent ? '#8b3d2a' : '#3978a8'));
-    circle.setAttribute('stroke-width', '1.8');
+    circle.setAttribute('r', isCurrent ? 20 : 16);
+    circle.setAttribute('fill', isCurrent ? '#2a9d8f' : (isEnd ? '#e9c46a' : '#ffffff'));
+    circle.setAttribute('stroke', isCurrent ? '#196359' : (isEnd ? '#9c7a2f' : '#929292'));
+    circle.setAttribute('stroke-width', '2.4');
     svg.appendChild(circle);
 
     const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     text.setAttribute('x', point.x);
     text.setAttribute('y', point.y + 3);
     text.setAttribute('text-anchor', 'middle');
-    text.setAttribute('font-size', '8');
+    text.setAttribute('font-size', '11');
     text.setAttribute('fill', '#1a1a1a');
     text.setAttribute('font-family', 'Times New Roman');
-    text.setAttribute('font-weight', '700');
     text.textContent = String(node.oldId);
     svg.appendChild(text);
   }

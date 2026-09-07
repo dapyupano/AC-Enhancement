@@ -183,6 +183,7 @@ function renderResults(originalText, data) {
 
   const isEnhanced = data.mode === "enhanced";
   resultModeBadge.textContent = isEnhanced ? "ENHANCED" : "ORIGINAL";
+  categoryHeader.hidden = !isEnhanced;
   confidenceHeader.hidden = !isEnhanced;
   scoreHeader.hidden = !isEnhanced;
   abbrevCol.hidden = !isEnhanced;
@@ -215,9 +216,11 @@ function renderTermsTable(matches, isEnhanced) {
     termTd.textContent = displayTerm;
     tr.appendChild(termTd);
 
-    const catTd = document.createElement("td");
-    catTd.textContent = m.category || "—";
-    tr.appendChild(catTd);
+    if (isEnhanced) {
+      const catTd = document.createElement("td");
+      catTd.textContent = m.category || "—";
+      tr.appendChild(catTd);
+    }
 
     if (isEnhanced) {
       const confTd = document.createElement("td");
@@ -326,14 +329,14 @@ function downloadResultPdf() {
 
     const head = isEnhanced
       ? [["Term", "Category", "Confidence", "Score"]]
-      : [["Term", "Category"]];
+      : [["Term"]];
     const body = matches.length
       ? matches.map((m) =>
           isEnhanced
             ? [m.term, m.category || "—", m.confidence === "fuzzy" ? "Fuzzy" : "Exact", String(m.score ?? "—")]
-            : [m.term, m.category || "—"]
+            : [m.term]
         )
-      : [isEnhanced ? ["—", "No medical terms matched.", "", ""] : ["—", "No medical terms matched."]];
+      : [isEnhanced ? ["—", "No medical terms matched.", "", ""] : ["—"]];
 
     doc.autoTable({
       startY: y + 6,

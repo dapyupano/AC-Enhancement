@@ -71,7 +71,7 @@ class EnhancedAhoCorasick:
     def __init__(self, patterns, dictionary_meaning=None,
                  ambiguous_terms=None, negative_context=None,
                  positive_context=None, hot_threshold=4,
-                 context_window_k=3):
+                 context_window_k=5, ambiguous_meanings=None):
         """
         patterns: iterable of (term, category, meaning) tuples.
         dictionary_meaning (D): term -> meaning, used ONLY in the
@@ -93,6 +93,7 @@ class EnhancedAhoCorasick:
         self.ambiguous_terms = ambiguous_terms or set()
         self.negative_context = negative_context or {}
         self.positive_context = positive_context or {}
+        self.ambiguous_meanings = ambiguous_meanings or {}
         self.theta = hot_threshold
         self.context_window_k = context_window_k
 
@@ -265,6 +266,19 @@ class EnhancedAhoCorasick:
                     if start >= 0:
                         append_candidate({"term": p, "start": start, "end": i + 1})
 
+            # Punctuation is normalized to spaces before scanning, so also test
+            # dictionary terms whose slash separator was normalized away.
+            for pattern in self._pattern_list:
+                if "/" not in pattern:
+                    continue
+                normalized_pattern = pattern.replace("/", " ")
+                for match in re.finditer(re.escape(normalized_pattern), T):
+                    append_candidate({
+                        "term": pattern,
+                        "start": match.start(),
+                        "end": match.end(),
+                    })
+
         candidates = self._normalize_symbol_candidates(candidates, T)
 
         # ---- Context-aware validation ----
@@ -296,16 +310,14 @@ class EnhancedAhoCorasick:
             score += self._known_term_bonus(hit["term"])
             score += self._context_bonus(hit["context_valid"])
             hit["priority_score"] = min(score / 4.0, 1.0)  # normalize to [0,1]
+            if self.term_category.get(hit["term"]) == "Dosage" and (
+                "/" in hit["term"] or re.match(r"^\d+\s+", hit["term"])
+            ):
+                hit["priority_score"] = max(hit["priority_score"], 0.95)
 
-        # ---- Overlap resolution: keep highest-scoring non-overlapping hits ----
-        validated.sort(key=lambda h: (-h["priority_score"], -len(h["term"])))
-        output = []
-        occupied = []  # list of (start, end) already accepted
-        for hit in validated:
-            overlap = any(not (hit["end"] <= s or hit["start"] >= e) for s, e in occupied)
-            if not overlap:
-                output.append(hit)
-                occupied.append((hit["start"], hit["end"]))
+        # Keep all validated hits until supplemental and fuzzy candidates have
+        # been added, then resolve every overlap in one priority-ordered pass.
+        output = list(validated)
 
         # ---- Meaning for abbreviated terms ----
         for hit in output:
@@ -315,7 +327,9 @@ class EnhancedAhoCorasick:
             elif lookup_term.startswith("#") or lookup_term.endswith("#"):
                 lookup_term = "#"
             hit["category"] = self.term_category.get(lookup_term, "")
-            hit["meaning"] = self.term_meaning.get(lookup_term, "—")
+            hit["meaning"] = self._meaning_for_hit(
+                hit, lookup_term, token_index, tokens, token_spans
+            )
             hit["match_type"] = "exact"
 
         # ---- Phase 7: Fuzzy Matching over tokens not covered by output ----
@@ -342,7 +356,7 @@ class EnhancedAhoCorasick:
             # Avoid rewriting normal 3-letter words like "day" into a valid
             # abbreviation such as "daw". Real OCR corruption cases like
             # "moflox" are longer and remain eligible for fuzzy correction.
-            if len(tok) == 3:
+            if len(tok) == 4:
                 continue
             if any(pos in covered_positions for pos in range(tstart, tend)):
                 continue
@@ -375,6 +389,22 @@ class EnhancedAhoCorasick:
         unit_hits = []
         for unit_match in re.finditer(r"(?i)(\d+)\s*(mg|mcg|ug|ml|g|tab|tabs|cap|caps)\b", T):
             unit = unit_match.group(2).upper()
+            dosage_term = f"{unit_match.group(1)}{unit}"
+            dosage_start = unit_match.start(1)
+            dosage_end = unit_match.end(2)
+            if dosage_term in self.term_category:
+                if not any(h.get("term") == dosage_term and h.get("start") == dosage_start and h.get("end") == dosage_end for h in output):
+                    unit_hits.append({
+                        "term": dosage_term,
+                        "matched": dosage_term,
+                        "start": dosage_start,
+                        "end": dosage_end,
+                        "category": self.term_category.get(dosage_term, "Dosage"),
+                        "meaning": self.term_meaning.get(dosage_term, "—"),
+                        "priority_score": 0.85,
+                        "match_type": "exact",
+                    })
+                continue
             start = unit_match.start(2)
             end = unit_match.end(2)
             if any(h.get("term") == unit and h.get("start") == start and h.get("end") == end for h in output):
@@ -408,12 +438,26 @@ class EnhancedAhoCorasick:
                 "start": tstart,
                 "end": tend,
                 "category": self.term_category.get(token, ""),
-                "meaning": self.term_meaning.get(token, "—"),
+                "meaning": self._meaning_for_hit(
+                    {"term": token, "start": tstart, "end": tend},
+                    token, token_index, tokens, token_spans,
+                ),
                 "priority_score": 0.72,
                 "match_type": "exact",
             })
             seen_exact.add((token, tstart, tend))
 
+        # ---- Final overlap resolution across all candidate sources ----
+        output.sort(key=lambda h: (-h["priority_score"], -len(h["term"])))
+        resolved = []
+        occupied = []
+        for hit in output:
+            overlap = any(not (hit["end"] <= start or hit["start"] >= end) for start, end in occupied)
+            if not overlap:
+                resolved.append(hit)
+                occupied.append((hit["start"], hit["end"]))
+
+        output = resolved
         output.sort(key=lambda h: h["start"])
         return output
 
@@ -494,7 +538,7 @@ class EnhancedAhoCorasick:
         return normalized
 
     def _length_bonus(self, term):
-        return min(len(term) / 12.0, 1.0)  # longer = more specific
+        return min(len(term) / 11.0, 1.0)  # longer = more specific
 
     def _boundary_bonus(self, hit, T):
         start, end = hit["start"], hit["end"]
@@ -504,6 +548,7 @@ class EnhancedAhoCorasick:
             left_ok = start == 0 or not T[start - 1].isalnum()
             right_ok = end >= len(T) or not T[end].isalnum()
             return 1.0 if (left_ok or hit["term"].endswith("#")) and (right_ok or hit["term"].startswith("#")) else 0.0
+        
         left_ok = start == 0 or not T[start - 1].isalnum()
         right_ok = end >= len(T) or not T[end].isalnum()
         return 1.0 if (left_ok and right_ok) else 0.0
@@ -513,6 +558,17 @@ class EnhancedAhoCorasick:
 
     def _context_bonus(self, context_valid):
         return 1.0 if context_valid else 0.0
+
+    def _meaning_for_hit(self, hit, lookup_term, token_index, tokens, token_spans):
+        meanings = self.ambiguous_meanings.get(lookup_term)
+        if not meanings:
+            return self.term_meaning.get(lookup_term, "—")
+
+        window = self._surrounding_tokens(hit, token_index, tokens, token_spans)
+        for meaning, context_terms in meanings.items():
+            if window & context_terms:
+                return meaning
+        return self.term_meaning.get(lookup_term, "—")
 
 
 def load_dictionary(csv_path):

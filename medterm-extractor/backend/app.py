@@ -16,13 +16,14 @@ Then open http://127.0.0.1:5000 in a browser.
 """
 
 import os
+import re
 from flask import Flask, request, jsonify, send_from_directory
 
 from algorithms.original_aho_corasick import OriginalAhoCorasick, load_patterns_from_csv
 from algorithms.enhanced_aho_corasick import EnhancedAhoCorasick, load_dictionary
 from data.context_data import (
     AMBIGUOUS_TERMS, NEGATIVE_CONTEXT, POSITIVE_CONTEXT,
-    HOT_STATE_THRESHOLD, CONTEXT_WINDOW_K,
+    AMBIGUOUS_MEANINGS, HOT_STATE_THRESHOLD, CONTEXT_WINDOW_K,
 )
 from data.ocr_corrections import apply_ocr_corrections, hardcoded_cleanup
 from ac_compare import (
@@ -55,6 +56,7 @@ enhanced_engine = EnhancedAhoCorasick(
     ambiguous_terms=AMBIGUOUS_TERMS,
     negative_context=NEGATIVE_CONTEXT,
     positive_context=POSITIVE_CONTEXT,
+    ambiguous_meanings=AMBIGUOUS_MEANINGS,
     hot_threshold=HOT_STATE_THRESHOLD,
     context_window_k=CONTEXT_WINDOW_K,
 )
@@ -119,7 +121,7 @@ def analyze():
 
     if mode == "enhanced":
         hits = enhanced_engine.search(text)
-        matches = [{
+        raw_matches = [{
             "term": h.get("matched", h["term"]),
             "category": h.get("category", ""),
             "meaning": h.get("meaning", "—"),
@@ -130,11 +132,32 @@ def analyze():
             "matched_dictionary_term": h.get("matched", h["term"]),
             "canonical_term": h["term"],
         } for h in hits]
+        matches = []
+        seen_matches = set()
+        for match in raw_matches:
+            key = (match["matched_dictionary_term"].upper(), match["category"])
+            if key in seen_matches:
+                continue
+            seen_matches.add(key)
+            matches.append(match)
 
         abbreviations = [
             {"term": m["matched_dictionary_term"], "meaning": m["meaning"]}
             for m in matches if m["meaning"] != "—"
         ]
+        # Keep component abbreviations visible even when a composite dosage
+        # term wins overlap resolution in the identified terms list.
+        for match in matches:
+            if match["category"] not in {"Dosage", "Frequency"}:
+                continue
+            components = re.findall(r"(?i)(mg|mcg|ug|ml|g|tab|tabs|cap|caps)\b", match["term"])
+            if match["category"] == "Frequency":
+                components.extend(re.findall(r"(?i)\b(?:2x|3x)\b", match["term"]))
+            for component in components:
+                component = component.upper()
+                meaning = enhanced_engine.term_meaning.get(component)
+                if meaning:
+                    abbreviations.append({"term": component, "meaning": meaning})
         # de-duplicate abbreviations panel
         seen = set()
         dedup_abbrev = []
@@ -152,14 +175,20 @@ def analyze():
     # ---- original / baseline algorithm: exact matches only, no meanings,
     #      no scoring, no context validation, no fuzzy matching ----
     hits = original_engine.search(text)
-    hits = [h for h in hits if h.get("category") != "Symbol"]
     hits.sort(key=lambda h: h["start"])
-    matches = [{
+    raw_matches = [{
         "term": h["term"],
-        "category": h.get("category", ""),
         "start": h["start"],
         "end": h["end"],
     } for h in hits]
+    matches = []
+    seen_matches = set()
+    for match in raw_matches:
+        key = match["term"].upper()
+        if key in seen_matches:
+            continue
+        seen_matches.add(key)
+        matches.append(match)
 
     return jsonify({
         "mode": "original",
@@ -191,21 +220,28 @@ def benchmark():
     orig_hits, orig_hops = bench_original.search(norm_text)
     enh_hits = bench_enhanced.search(norm_text)
 
-    def time_it(fn):
-        best = None
-        for _ in range(5):  # 5 trials, take the best (min) like main.py
+    def time_it(fn, label):
+        # Best-of-5: repeat to smooth out timer/OS noise and get a stable
+        # reading. Prints each trial, then a summary line for the best one.
+        trials = []
+        for trial in range(5):
             t0 = _time.perf_counter()
             for _ in range(iterations):
                 fn(norm_text)
             t1 = _time.perf_counter()
-            avg = (t1 - t0) / iterations
-            if best is None or avg < best:
-                best = avg
-        return best
+            diff = t1 - t0
+            avg = diff / iterations
+            print(f"{label} trial {trial}: t0={t0}, t1={t1}, diff={diff}, ")
+            trials.append(avg)
 
-    t_orig = time_it(lambda t: bench_original.search(t))
-    t_enh = time_it(lambda t: bench_enhanced.search(t))
-    speedup = (t_orig / t_enh) if t_enh > 0 else None #  e.g. 3.10x FASTER 
+        best_trial = min(range(5), key=lambda i: trials[i])
+        best = trials[best_trial]
+        print(f"{label.capitalize()} best (lowest average): trial {best_trial}, {round(best * 1_000_000, 3)} us\n")
+        return best, best_trial
+
+    t_orig, orig_best_trial = time_it(lambda t: bench_original.search(t), "baseline")  # T(s)
+    t_enh, enh_best_trial = time_it(lambda t: bench_enhanced.search(t), "enhanced")     # T(o)
+    speedup = (t_orig / t_enh) if t_enh > 0 else None
 
     return jsonify({
         "normalized_text": norm_text,
@@ -213,16 +249,18 @@ def benchmark():
         "pattern_count": len(BENCH_PATTERNS),
         "original": {
             "nodes": len(bench_original.nodes),
-            "build_time_ms": round(bench_original.build_time * 1000, 3), #e.g. 0.497ms seconds -> milliseconds rounded to 3 decimal places
-            "avg_time_us": round(t_orig * 1_000_000, 3),  # e.g. 19.437
+            "build_time_ms": round(bench_original.build_time * 1000, 3),
+            "avg_time_us": round(t_orig * 1_000_000, 3),
             "failure_hops": orig_hops,
+            "best_trial": orig_best_trial,
             "hits": [{"term": p, "start": s, "end": e} for p, s, e in sorted(orig_hits, key=lambda h: h[1])],
         },
         "enhanced": {
             "nodes": len(bench_enhanced.nodes),
             "build_time_ms": round(bench_enhanced.build_time * 1000, 3),
-            "avg_time_us": round(t_enh * 1_000_000, 3),  # e.g. 6.277
+            "avg_time_us": round(t_enh * 1_000_000, 3),
             "failure_hops": 0,
+            "best_trial": enh_best_trial,
             "hits": [{"term": p, "start": s, "end": e} for p, s, e in sorted(enh_hits, key=lambda h: h[1])],
         },
         "speedup": round(speedup, 3) if speedup else None,

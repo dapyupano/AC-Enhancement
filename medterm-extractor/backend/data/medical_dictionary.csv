@@ -183,6 +183,7 @@ ONCE A DAY,Frequency,
 TWICE A DAY,Frequency,
 THREE TIMES A DAY,Frequency,
 3X A DAY,Frequency,
+3X/DAY,Frequency,
 3X DAILY,Frequency,
 TWICE DAILY,Frequency,
 ONCE DAILY,Frequency,
@@ -215,7 +216,6 @@ HPI,Abbreviation,History of present illness
 PNDF,Abbreviation,Philippine National Drug Formulary
 DOH,Abbreviation,Department of Health
 PHIC,Abbreviation,Philhealth Insurance Corporation
-ORS,Abbreviation,Oral rehydration solution
 NDC,Abbreviation,National drug code
 RHU,Abbreviation,Rural health unit
 CHD,Abbreviation,Center for Health Development
@@ -276,7 +276,6 @@ GTT,Abbreviation,Drops
 AMP,Abbreviation,Ampule
 VIAL,Abbreviation,Small sealed drug container
 ELIX,Abbreviation,Elixir
-PATCH,Abbreviation,Transdermal patch
 TD,Abbreviation,Transdermal patch
 TEMP,Abbreviation,Temperature
 SPO2,Abbreviation,Oxygen saturation
@@ -344,3 +343,5 @@ AOG,Abbreviation,Age of gestation / Gestational age
 GA,Abbreviation,Age of gestation / Gestational age
 UTI,Abbreviation,Urinary tract infection
 SIG,Abbreviation,Directions for use
+COLD,Symptom,Common cold
+PAIN,Symptom,Pain or discomfort
