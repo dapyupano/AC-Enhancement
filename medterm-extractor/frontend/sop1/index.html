@@ -523,12 +523,8 @@
             <textarea id="text" placeholder="Type the text you want to search here..."></textarea>
           </div>
           <div class="row">
-            <label class="label" for="patternsOriginal">Baseline detected patterns</label>
-            <textarea id="patternsOriginal" placeholder="Baseline AC matches will appear here." readonly></textarea>
-          </div>
-          <div class="row">
-            <label class="label" for="patternsEnhanced">Enhanced detected patterns</label>
-            <textarea id="patternsEnhanced" placeholder="Enhanced AC matches will appear here." readonly></textarea>
+            <label class="label" for="patterns">Patterns (automatic)</label>
+            <textarea id="patterns" placeholder="Filled when Build + Run is clicked..." readonly></textarea>
           </div>
         </div>
       </div>
@@ -566,7 +562,7 @@
         <div class="canvas-wrap"><svg id="svgOriginal"></svg></div>
         <div class="legend">
           <span><span class="dot" style="background:#2a9d8f"></span>Current state</span>
-          <span><span class="dot" style="background:#e9c46a"></span>End state</span>
+          <span><span class="dot" style="background:#e9c46a"></span>Output state</span>
           <span><span class="dot" style="background:#e76f51"></span>Failure fallback used</span>
         </div>
         </article>
@@ -580,7 +576,7 @@
         <div class="canvas-wrap"><svg id="svgEnhanced"></svg></div>
         <div class="legend">
           <span><span class="dot" style="background:#2a9d8f"></span>Current state</span>
-          <span><span class="dot" style="background:#e9c46a"></span>End state</span>
+          <span><span class="dot" style="background:#e9c46a"></span>Output state</span>
           <span><span class="dot" style="background:#006d77"></span>Direct precomputed transition</span>
         </div>
         </article>
@@ -619,8 +615,7 @@
       prescriptionImage: document.getElementById("prescriptionImage"),
       extractImage: document.getElementById("extractImage"),
       uploadStatus: document.getElementById("uploadStatus"),
-      patternsOriginal: document.getElementById("patternsOriginal"),
-      patternsEnhanced: document.getElementById("patternsEnhanced"),
+      patterns: document.getElementById("patterns"),
       text: document.getElementById("text"),
       buildRun: document.getElementById("buildRun"),
       benchIterations: document.getElementById("benchIterations"),
@@ -678,11 +673,11 @@
       return Array.from(new Set(parts));
     }
 
-    async function discoverPatterns(text, mode) {
+    async function discoverPatterns(text) {
       const response = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, mode })
+        body: JSON.stringify({ text, mode: "enhanced" })
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Pattern extraction failed.");
@@ -949,7 +944,7 @@
             fill: "rgba(0,0,0,0.72)",
             "font-family": "Times New Roman"
           });
-          lbl.textContent = ch;
+          lbl.textContent = ch === " " ? "SP" : ch;
           svg.appendChild(lbl);
         }
       }
@@ -1059,8 +1054,8 @@
     }
 
     ui.downloadSkipPdf.addEventListener("click", () => {
-      const table = ui.skipTableBox.querySelector("table");
-      if (!table) {
+      const automaton = state.automatonEnhanced;
+      if (!automaton) {
         ui.status.textContent = "Build the automaton before downloading the skip table.";
         return;
       }
@@ -1070,20 +1065,37 @@
         return;
       }
 
+      // Build the table straight from the automaton data (not the live DOM).
+      // autoTable's `html:` mode re-derives column order from each cell's
+      // on-screen position, and the State column uses position:sticky inside
+      // a scrollable box — if the table was scrolled at all when this button
+      // was clicked, that sticky column's rendered position no longer matches
+      // its real column order, so autoTable can place it out of sequence
+      // (e.g. "A" printed before "State"). Passing head/body arrays directly
+      // sidesteps DOM layout entirely, so column order always matches the data.
+      const { nodes, skip } = automaton;
+      const head = [["State", ...SIGMA.map(ch => (ch === " " ? "SP" : ch))]];
+      const body = nodes.map((_, s) => [`S${s}`, ...skip[s]]);
+
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
       doc.setFontSize(14);
       doc.text("Precomputed Skip Table", 28, 28);
       doc.setFontSize(8);
       doc.text(ui.skipMeta.textContent, 28, 42);
+      // horizontalPageBreakRepeat takes a COLUMN INDEX to repeat on every
+      // page, not a count. Column 0 is "State" — repeating index 1 (which is
+      // the "A" column) was pinning "A" as the anchor column and printing it
+      // first on every page, ahead of "State". Repeat index 0 instead.
       doc.autoTable({
-        html: table,
+        head,
+        body,
         startY: 52,
         theme: "grid",
         styles: { font: "courier", fontSize: 5, cellPadding: 2, halign: "center" },
         headStyles: { fillColor: [245, 239, 224], textColor: [30, 26, 19] },
         horizontalPageBreak: true,
-        horizontalPageBreakRepeat: 1,
+        horizontalPageBreakRepeat: 0,
         margin: { left: 28, right: 28 }
       });
       doc.save(`precomputed-skip-table-${new Date().toISOString().slice(0, 10)}.pdf`);
@@ -1123,18 +1135,15 @@
       stopPlay();
       ui.pyBenchmarkBox.textContent = "Simulation running... comparative results will appear when the progress bar is complete.";
 
-      let baselinePatterns = parsePatterns(ui.patternsOriginal.value);
-      let enhancedPatterns = parsePatterns(ui.patternsEnhanced.value);
+      let patterns = parsePatterns(ui.patterns.value);
       let text = normalizeText(ui.text.value);
 
       if (ui.prescription.value.trim()) {
         ui.status.textContent = "Finding dictionary patterns from the prescription...";
         try {
           const prescriptionText = normalizeText(ui.prescription.value);
-          baselinePatterns = await discoverPatterns(prescriptionText, "original");
-          enhancedPatterns = await discoverPatterns(prescriptionText, "enhanced");
-          ui.patternsOriginal.value = baselinePatterns.join(", ");
-          ui.patternsEnhanced.value = enhancedPatterns.join(", ");
+          patterns = await discoverPatterns(prescriptionText);
+          ui.patterns.value = patterns.join(", ");
           if (!text) {
             ui.text.value = prescriptionText;
             text = prescriptionText;
@@ -1145,7 +1154,7 @@
         }
       }
 
-      if (!baselinePatterns.length && !enhancedPatterns.length) {
+      if (!patterns.length) {
         ui.status.textContent = "No patterns found. Upload or type a prescription first.";
         return;
       }
@@ -1156,8 +1165,8 @@
       }
 
       const t0 = performance.now();
-      const automatonOriginal = buildAutomaton(baselinePatterns);
-      const automatonEnhanced = buildAutomaton(enhancedPatterns);
+      const automatonOriginal = buildAutomaton(patterns);
+      const automatonEnhanced = buildAutomaton(patterns);
       const t1 = performance.now();
       const simO = simulateOriginal(automatonOriginal, text);
       const t2 = performance.now();
@@ -1174,13 +1183,13 @@
       state.idx = -1;
       state.benchmarkStarted = false;
 
-      ui.metaOriginal.textContent = `nodes=${automatonOriginal.nodes.length} | patterns=${baselinePatterns.length} | build=${(t1 - t0).toFixed(2)}ms | run=${(t2 - t1).toFixed(2)}ms`;
-      ui.metaEnhanced.textContent = `nodes=${automatonEnhanced.nodes.length} | patterns=${enhancedPatterns.length} | skipReady=yes | run=${(t3 - t2).toFixed(2)}ms`;
+      ui.metaOriginal.textContent = `nodes=${automatonOriginal.nodes.length} | patterns=${patterns.length} | build=${(t1 - t0).toFixed(2)}ms | run=${(t2 - t1).toFixed(2)}ms`;
+      ui.metaEnhanced.textContent = `nodes=${automatonEnhanced.nodes.length} | patterns=${patterns.length} | skipReady=yes | run=${(t3 - t2).toFixed(2)}ms`;
 
       renderSkipTable(automatonEnhanced);
 
       ui.status.textContent =
-        `Baseline patterns: ${baselinePatterns.length} exact; enhanced patterns: ${enhancedPatterns.length}.\n` +
+        `Patterns: ${patterns.length}.\n` +
         `Original total failure hops: ${simO.hopsTotal}.\n` +
         `Enhanced uses precomputed skip table transitions only.`;
 

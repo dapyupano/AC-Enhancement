@@ -330,7 +330,6 @@ HX,Abbreviation,History
 DX,Abbreviation,Diagnosis
 RX,Abbreviation,Prescription
 PSH,Abbreviation,Past surgical history
-REF,Abbreviation,Referred
 OPD,Abbreviation,Outpatient department
 IPD,Abbreviation,Inpatient department
 ER,Abbreviation,Emergency room/department

@@ -32,6 +32,7 @@ from ac_compare import (
     PATTERNS as BENCH_PATTERNS,
     normalize_text as bench_normalize_text,
 )
+from memory_layout import print_run_memory_layout
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_PATH = os.path.join(BASE_DIR, "data", "medical_dictionary.csv")
@@ -115,6 +116,7 @@ def analyze():
     payload = request.get_json(silent=True) or {}
     text = payload.get("text", "")
     mode = payload.get("mode", "original")
+    debug_memory = bool(payload.get("debug_memory"))
 
     if not text.strip():
         return jsonify({"error": "No text provided to analyze."}), 400
@@ -165,6 +167,14 @@ def analyze():
             if a["term"] not in seen:
                 seen.add(a["term"])
                 dedup_abbrev.append(a)
+
+        if debug_memory:
+            # SOP 2 "Run" button only: print baseline vs two-pass BFS node
+            # addresses to the terminal for the patterns found in THIS
+            # prescription, the same way /api/benchmark prints SOP 1's
+            # trial timings.
+            detected_terms = sorted({m["matched_dictionary_term"] for m in matches})
+            print_run_memory_layout(detected_terms)
 
         return jsonify({
             "mode": "enhanced",
