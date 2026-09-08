@@ -519,12 +519,12 @@
         </div>
         <div class="field-stack">
           <div class="row">
-            <label class="label" for="text">Text to search</label>
-            <textarea id="text" placeholder="Type the text you want to search here..."></textarea>
+            <label class="label" for="patternsOriginal">Original Aho-Corasick patterns</label>
+            <textarea id="patternsOriginal" placeholder="Original algorithm patterns will appear here..." readonly></textarea>
           </div>
           <div class="row">
-            <label class="label" for="patterns">Patterns (automatic)</label>
-            <textarea id="patterns" placeholder="Filled when Build + Run is clicked..." readonly></textarea>
+            <label class="label" for="patternsEnhanced">Enhanced Aho-Corasick patterns</label>
+            <textarea id="patternsEnhanced" placeholder="Enhanced algorithm patterns will appear here..." readonly></textarea>
           </div>
         </div>
       </div>
@@ -615,8 +615,8 @@
       prescriptionImage: document.getElementById("prescriptionImage"),
       extractImage: document.getElementById("extractImage"),
       uploadStatus: document.getElementById("uploadStatus"),
-      patterns: document.getElementById("patterns"),
-      text: document.getElementById("text"),
+      patternsOriginal: document.getElementById("patternsOriginal"),
+      patternsEnhanced: document.getElementById("patternsEnhanced"),
       buildRun: document.getElementById("buildRun"),
       benchIterations: document.getElementById("benchIterations"),
       prevStep: document.getElementById("prevStep"),
@@ -641,7 +641,6 @@
     const sharedText = sessionStorage.getItem("medtermExtractorText");
     if (sharedText && !ui.prescription.value.trim()) {
       ui.prescription.value = sharedText;
-      ui.text.value = sharedText;
       ui.uploadStatus.textContent = "Prescription text restored from the main extractor.";
     }
 
@@ -670,21 +669,26 @@
         .split(",")
         .map(s => normalizeText(s))
         .filter(Boolean);
-      return Array.from(new Set(parts));
+      return canonicalizePatterns(parts);
     }
 
-    async function discoverPatterns(text) {
+    function canonicalizePatterns(patterns) {
+      return Array.from(new Set(patterns.map(pattern => normalizeText(pattern)).filter(Boolean)))
+        .sort((a, b) => a.localeCompare(b));
+    }
+
+    async function discoverPatterns(text, mode) {
       const response = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, mode: "enhanced" })
+        body: JSON.stringify({ text, mode })
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Pattern extraction failed.");
 
-      const found = Array.from(new Set(
+      const found = canonicalizePatterns(
         (data.matches || []).map(match => match.matched_dictionary_term || match.term).filter(Boolean)
-      ));
+      );
       return found;
     }
 
@@ -708,7 +712,6 @@
         const extracted = (data.text || "").trim();
         if (!extracted) throw new Error("No text was detected in the image.");
         ui.prescription.value = extracted;
-        ui.text.value = extracted;
         ui.uploadStatus.textContent = `Extracted ${extracted.length} characters from the image.`;
         ui.status.textContent = "Image text loaded. Build the automaton to find dictionary patterns automatically.";
       } catch (err) {
@@ -970,12 +973,13 @@
         let fill = "#ffffff";
         let stroke = "rgba(0,0,0,0.45)";
         let r = 10;
+        const isEnd = node.outputs.length > 0;
 
         if (node.id === options.current) {
           fill = "#2a9d8f";
           stroke = "#196359";
           r = 13;
-        } else if (node.outputs.length) {
+        } else if (isEnd) {
           fill = "#e9c46a";
           stroke = "#9c7a2f";
         }
@@ -985,6 +989,14 @@
           fill, stroke, "stroke-width": 1.8
         });
         svg.appendChild(circle);
+
+        if (isEnd) {
+          const endRing = svgEl("circle", {
+            cx: p.x, cy: p.y, r: r + 5,
+            fill: "none", stroke, "stroke-width": 1.8
+          });
+          svg.appendChild(endRing);
+        }
 
         const txt = svgEl("text", {
           x: p.x,
@@ -1135,19 +1147,19 @@
       stopPlay();
       ui.pyBenchmarkBox.textContent = "Simulation running... comparative results will appear when the progress bar is complete.";
 
-      let patterns = parsePatterns(ui.patterns.value);
-      let text = normalizeText(ui.text.value);
+      let patterns = [];
+      const text = normalizeText(ui.prescription.value);
 
-      if (ui.prescription.value.trim()) {
+      if (text) {
         ui.status.textContent = "Finding dictionary patterns from the prescription...";
         try {
-          const prescriptionText = normalizeText(ui.prescription.value);
-          patterns = await discoverPatterns(prescriptionText);
-          ui.patterns.value = patterns.join(", ");
-          if (!text) {
-            ui.text.value = prescriptionText;
-            text = prescriptionText;
-          }
+          const [originalPatterns, enhancedPatterns] = await Promise.all([
+            discoverPatterns(text, "original"),
+            discoverPatterns(text, "enhanced")
+          ]);
+          ui.patternsOriginal.value = originalPatterns.join(", ");
+          ui.patternsEnhanced.value = enhancedPatterns.join(", ");
+          patterns = canonicalizePatterns([...originalPatterns, ...enhancedPatterns]);
         } catch (err) {
           ui.status.textContent = `Pattern extraction failed: ${err.message}`;
           return;
@@ -1160,7 +1172,7 @@
       }
 
       if (!text.length) {
-        ui.status.textContent = "Please provide text to search, then click Build Automaton + Run.";
+        ui.status.textContent = "Please provide a prescription, then click Build Automaton + Run.";
         return;
       }
 
@@ -1200,9 +1212,9 @@
     ui.buildRun.addEventListener("click", buildAndRun);
 
     async function runPythonBenchmarkMode() {
-      const text = (ui.text.value || ui.prescription.value || "").trim();
+      const text = ui.prescription.value.trim();
       if (!text) {
-        ui.pyBenchmarkBox.textContent = "Type some text (in the prescription or search box) before running the Python backend benchmark.";
+        ui.pyBenchmarkBox.textContent = "Type a prescription before running the Python backend benchmark.";
         return;
       }
       const iterations = Math.max(100, Number(ui.benchIterations.value) || 3000);
@@ -1274,7 +1286,7 @@
     });
 
     function clearResultsIfTextDeleted() {
-      if (ui.text.value.trim() || ui.prescription.value.trim()) return;
+      if (ui.prescription.value.trim()) return;
       stopPlay();
       state.automatonOriginal = null;
       state.automatonEnhanced = null;
@@ -1291,7 +1303,6 @@
       ui.svgEnhanced.innerHTML = "";
     }
 
-    ui.text.addEventListener("input", clearResultsIfTextDeleted);
     ui.prescription.addEventListener("input", clearResultsIfTextDeleted);
 
     ui.status.textContent = "Original AC follows failure links one step at a time; Enhanced AC uses precomputed skip-table transitions.";

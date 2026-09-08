@@ -59,7 +59,7 @@
     <div class="page-body">
 <div class="wrap">
 <section class="hero"><h1>SOP 2: Two-Pass BFS Memory Layout</h1><div class="sub">Upload or type a prescription, review the extracted search text and all matched patterns, then watch both automata traverse it.</div>
-<div class="controls"><div class="field"><span class="label">Prescription image</span><div class="upload"><input id="image" type="file" accept="image/*"><button id="ocr" class="primary">Extract</button></div><textarea id="prescription" placeholder="Upload an image or type a prescription..."></textarea></div><div class="field-stack"><div class="field"><span class="label">Text to search</span><textarea id="text" placeholder="Filled from the prescription..."></textarea></div><div class="field"><span class="label">Patterns (automatic)</span><textarea id="patterns" placeholder="Filled when Build + Run is clicked..."></textarea></div></div></div>
+<div class="controls"><div class="field"><span class="label">Prescription image</span><div class="upload"><input id="image" type="file" accept="image/*"><button id="ocr" class="primary">Extract</button></div><textarea id="prescription" placeholder="Type or extract a prescription here..."></textarea></div><div class="field-stack"><div class="field"><span class="label">Original Aho-Corasick patterns</span><textarea id="patternsOriginal" placeholder="Original algorithm patterns will appear here..." readonly></textarea></div><div class="field"><span class="label">Enhanced Aho-Corasick patterns</span><textarea id="patternsEnhanced" placeholder="Enhanced algorithm patterns will appear here..." readonly></textarea></div></div></div>
 <div class="buttons">
   <div class="buttons-left"><button id="build" class="primary">Run</button></div>
   <div class="buttons-right">
@@ -98,7 +98,6 @@ const S = { nodes: [], patterns: [], text: '', i: -1, timer: null, metrics: null
 const sharedText = sessionStorage.getItem('medtermExtractorText');
 if (sharedText) {
   $('prescription').value = sharedText;
-  $('text').value = sharedText;
   $('status').textContent = INITIAL_STATUS;
 }
 
@@ -106,15 +105,20 @@ function norm(x) {
   return (x || '').toUpperCase().replace(/[^A-Z0-9 .,/()%+:-]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-async function patternsFor(text) {
+function canonicalizePatterns(patterns) {
+  return [...new Set(patterns.map(pattern => norm(pattern)).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b));
+}
+
+async function patternsFor(text, mode) {
   const response = await fetch('/api/analyze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, mode: 'enhanced', debug_memory: true })
+    body: JSON.stringify({ text, mode, debug_memory: true })
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'Pattern discovery failed.');
-  return [...new Set((data.matches || []).map(m => m.matched_dictionary_term || m.term).filter(Boolean))];
+  return canonicalizePatterns((data.matches || []).map(m => m.matched_dictionary_term || m.term).filter(Boolean));
 }
 
 function buildTrie(patterns) {
@@ -298,6 +302,17 @@ function drawNodeGraph(svg, layout, highlightId, mode) {
     circle.setAttribute('stroke-width', '2.4');
     svg.appendChild(circle);
 
+    if (isEnd) {
+      const endRing = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      endRing.setAttribute('cx', point.x);
+      endRing.setAttribute('cy', point.y);
+      endRing.setAttribute('r', (isCurrent ? 20 : 16) + 5);
+      endRing.setAttribute('fill', 'none');
+      endRing.setAttribute('stroke', isCurrent ? '#196359' : '#9c7a2f');
+      endRing.setAttribute('stroke-width', '2.4');
+      svg.appendChild(endRing);
+    }
+
     const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     text.setAttribute('x', point.x);
     text.setAttribute('y', point.y + 3);
@@ -371,14 +386,20 @@ $('build').onclick = async () => {
   clearInterval(S.timer);
   S.resultReady = false;
   $('result').textContent = 'Simulation running... comparative results will appear when the progress bar is complete.';
-  const text = norm($('text').value || $('prescription').value);
+  const text = norm($('prescription').value);
   if (!text) {
     $('status').textContent = 'Provide prescription text first.';
     return;
   }
 
   try {
-    const patterns = await patternsFor(text);
+    const [originalPatterns, enhancedPatterns] = await Promise.all([
+      patternsFor(text, 'original'),
+      patternsFor(text, 'enhanced')
+    ]);
+    $('patternsOriginal').value = originalPatterns.join(', ');
+    $('patternsEnhanced').value = enhancedPatterns.join(', ');
+    const patterns = canonicalizePatterns([...originalPatterns, ...enhancedPatterns]);
     if (!patterns.length) {
       $('status').textContent = 'No dictionary patterns found.';
       $('osvg').innerHTML = '';
@@ -386,7 +407,6 @@ $('build').onclick = async () => {
       $('result').textContent = 'No patterns were detected for this text.';
       return;
     }
-    $('patterns').value = patterns.join(', ');
     $('detected').textContent = patterns.join(', ');
 
     const trie = buildTrie(patterns);
@@ -412,7 +432,7 @@ $('build').onclick = async () => {
 };
 
 function clearResultsIfTextDeleted() {
-  if (($('text').value || $('prescription').value).trim()) return;
+  if ($('prescription').value.trim()) return;
   clearInterval(S.timer);
   S.resultReady = false;
   S.nodes = [];
@@ -425,7 +445,7 @@ function clearResultsIfTextDeleted() {
   $('status').textContent = INITIAL_STATUS;
 }
 
-['text', 'prescription'].forEach(id => $(id).addEventListener('input', clearResultsIfTextDeleted));
+['prescription'].forEach(id => $(id).addEventListener('input', clearResultsIfTextDeleted));
 
 $('ocr').onclick = async () => {
   const file = $('image').files[0];
@@ -445,7 +465,6 @@ $('ocr').onclick = async () => {
     if (!response.ok) throw new Error(data.error || 'OCR failed.');
     const extracted = (data.text || '').trim();
     $('prescription').value = extracted;
-    $('text').value = extracted;
     $('status').textContent = 'Image text loaded. Build the layout comparison.';
   } catch (err) {
     $('status').textContent = err.message;
