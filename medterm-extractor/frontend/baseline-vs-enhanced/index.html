@@ -1,0 +1,781 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Baseline vs Enhanced Automaton | Medical Term Extractor</title>
+  <link rel="stylesheet" href="../style.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    :root {
+      --bg-1: #f7f4ec;
+      --bg-2: #ece6d5;
+      --ink: #1e1a13;
+      --card: rgba(255, 255, 255, 0.78);
+      --line: rgba(30, 26, 19, 0.18);
+      --accent-a: #006d77;
+      --accent-b: #e76f51;
+      --accent-c: #f4a261;
+      --ok: #2a9d8f;
+      --warn: #b44b2d;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 15% 10%, rgba(231, 111, 81, 0.22), transparent 40%),
+        radial-gradient(circle at 90% 20%, rgba(0, 109, 119, 0.2), transparent 35%),
+        linear-gradient(135deg, var(--bg-1), var(--bg-2));
+      min-height: 100vh;
+    }
+
+    .wrap {
+      width: min(1400px, 96%);
+      margin: 1.2rem auto 2rem;
+      display: grid;
+      gap: 1rem;
+    }
+
+    .hero {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 1rem 1.1rem;
+      backdrop-filter: blur(4px);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.15rem, 2vw, 1.65rem);
+      letter-spacing: 0.02em;
+    }
+
+    .sub {
+      margin-top: 0.35rem;
+      font-size: 0.95rem;
+      opacity: 0.86;
+    }
+
+    .control-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.65rem;
+    }
+
+    .field-stack {
+      display: grid;
+      gap: 0.65rem;
+      align-content: start;
+    }
+
+    @media (max-width: 900px) {
+      .control-grid { grid-template-columns: 1fr; }
+    }
+
+    .upload-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 0.55rem;
+      align-items: end;
+    }
+
+    .upload-status {
+      grid-column: 1 / -1;
+      min-height: 1.1rem;
+      font-family: var(--mono);
+      font-size: 0.76rem;
+      opacity: 0.82;
+    }
+
+    .row { display: grid; gap: 0.55rem; grid-template-columns: 1fr; }
+
+    .label { font-size: 0.9rem; font-weight: 600; letter-spacing: 0.01em; }
+
+    textarea, input, select {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.95);
+      padding: 0.6rem 0.7rem;
+      font-family: var(--mono);
+      font-size: 0.86rem;
+      color: #1a1917;
+    }
+
+    textarea { min-height: 74px; resize: vertical; }
+
+    .buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.55rem;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .buttons-left, .buttons-right {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.55rem;
+      align-items: center;
+    }
+
+    button {
+      border: 1px solid var(--line);
+      background: white;
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 0.45rem 0.85rem;
+      font-family: var(--sans);
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 120ms ease, box-shadow 120ms ease;
+    }
+
+    button:hover { transform: translateY(-1px); box-shadow: 0 6px 12px rgba(0, 0, 0, 0.08); }
+    button.primary { background: var(--accent-a); color: #fff; border-color: transparent; }
+    button.alt { background: var(--accent-b); color: #fff; border-color: transparent; }
+
+    .panels {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.9rem;
+    }
+
+    .analysis-layout {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.9rem;
+      align-items: start;
+    }
+
+    .results-column { display: grid; gap: 0.8rem; position: static; }
+
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+      min-height: 380px;
+    }
+
+    .panel-head {
+      padding: 0.7rem 0.9rem;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+
+    .panel-title { font-size: 1rem; font-weight: 700; }
+
+    .meta { font-family: var(--mono); font-size: 0.76rem; opacity: 0.9; }
+
+    .step-strip {
+      padding: 0.55rem 0.9rem;
+      border-bottom: 1px solid var(--line);
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      background: rgba(255, 255, 255, 0.55);
+    }
+
+    .canvas-wrap {
+      position: relative;
+      min-height: 290px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.66), rgba(255, 255, 255, 0.54)),
+        repeating-linear-gradient(45deg, rgba(0,0,0,0.02), rgba(0,0,0,0.02) 8px, rgba(0,0,0,0.0) 8px, rgba(0,0,0,0.0) 16px);
+      overflow: auto;
+    }
+
+    svg { width: 100%; min-height: 320px; display: block; }
+
+    .legend {
+      padding: 0.6rem 0.9rem;
+      border-top: 1px solid var(--line);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.65rem;
+      font-size: 0.78rem;
+      align-items: center;
+    }
+
+    .dot {
+      width: 0.72rem;
+      height: 0.72rem;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 0.34rem;
+      vertical-align: middle;
+    }
+
+    .status {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 0.62rem 0.85rem;
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      white-space: pre-wrap;
+    }
+
+    .bench-wrap {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 0.7rem 0.8rem;
+      display: grid;
+      gap: 0.45rem;
+    }
+
+    .bench-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+    }
+
+    .bench-title { font-size: 0.95rem; font-weight: 700; }
+
+    .bench-box {
+      background: rgba(255, 255, 255, 0.86);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 0.6rem 0.75rem;
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      white-space: pre-wrap;
+      line-height: 1.55;
+      overflow-wrap: anywhere;
+    }
+
+    .page-body { flex: 1; min-width: 0; overflow-x: hidden; background: #f2f4f8; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img class="brand-mark" src="../logoo.png" alt="Medical Term Extractor logo" />
+      <div class="brand-text">
+        <span class="brand-title">Medical Term Extractor</span>
+      </div>
+    </div>
+  </header>
+  <div class="app-shell">
+    <aside class="side-menu">
+      <nav class="side-nav">
+        <div class="side-group">
+          <a class="side-item" href="../index.html">
+            <span class="side-dot"></span>
+            <span class="side-label">Baseline algorithm</span>
+          </a>
+          <a class="side-item" href="../index.html">
+            <span class="side-dot"></span>
+            <span class="side-label">Enhanced Algorithm</span>
+          </a>
+        </div>
+        <div class="side-group">
+          <a class="side-item" href="../sop1/index.html">
+            <span class="side-dot"></span>
+            <span class="side-label">SOP 1</span>
+          </a>
+          <a class="side-item" href="../sop2/index.html">
+            <span class="side-dot"></span>
+            <span class="side-label">SOP 2</span>
+          </a>
+          <a class="side-item" href="../sop3/index.html">
+            <span class="side-dot"></span>
+            <span class="side-label">SOP 3</span>
+          </a>
+        </div>
+        <div class="side-group">
+          <a class="side-item active" href="../baseline-vs-enhanced/index.html">
+            <span class="side-dot"></span>
+            <span class="side-label">Baseline vs Enhanced (Build)</span>
+          </a>
+        </div>
+        <div class="side-group">
+          <a class="side-item" href="../history/index.html">
+            <span class="side-dot"></span>
+            <span class="side-label">History</span>
+          </a>
+        </div>
+      </nav>
+    </aside>
+
+    <div class="main-col">
+      <div class="page-body">
+  <div class="wrap">
+    <section class="hero">
+      <h1>Baseline vs Enhanced Automaton</h1>
+      <div class="sub">
+        Each engine detects its own set of patterns from the same prescription — the Baseline algorithm
+        matches raw substrings with no boundary or context checking, while the Enhanced algorithm applies
+        boundary checking and context-aware validation before a term counts as a match. This page builds a
+        <strong>separate automaton from each engine's own detected patterns</strong> (not a shared/merged list),
+        so you can see how that filtering changes the resulting automaton's size and shape.
+      </div>
+      <div class="control-grid" style="margin-top:0.8rem;">
+        <div class="row">
+          <label class="label" for="prescription">Prescription input</label>
+          <div class="upload-row">
+            <input id="prescriptionImage" type="file" accept="image/*" />
+            <button class="primary" id="extractImage">Extract</button>
+            <div class="upload-status" id="uploadStatus" aria-live="polite"></div>
+          </div>
+          <textarea id="prescription" placeholder="Type a prescription here to extract matching patterns..."></textarea>
+        </div>
+        <div class="field-stack">
+          <div class="row">
+            <label class="label" for="patternsOriginal">Baseline-detected patterns</label>
+            <textarea id="patternsOriginal" placeholder="Patterns the Baseline algorithm actually matched will appear here..." readonly></textarea>
+          </div>
+          <div class="row">
+            <label class="label" for="patternsEnhanced">Enhanced-detected patterns</label>
+            <textarea id="patternsEnhanced" placeholder="Patterns the Enhanced algorithm actually matched will appear here..." readonly></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="buttons" style="margin-top:0.75rem;">
+        <div class="buttons-left">
+          <button class="primary" id="buildRun">Build &amp; Compare</button>
+        </div>
+      </div>
+    </section>
+
+    <div class="analysis-layout">
+      <section class="panels">
+        <article class="panel">
+          <div class="panel-head">
+            <div class="panel-title">Baseline Automaton</div>
+            <div class="meta" id="metaOriginal">-</div>
+          </div>
+          <div class="step-strip" id="stepOriginal">Built from the Baseline algorithm's own detected patterns.</div>
+          <div class="canvas-wrap"><svg id="svgOriginal"></svg></div>
+          <div class="legend">
+            <span><span class="dot" style="background:#e9c46a"></span>End state (pattern match)</span>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <div class="panel-title">Enhanced Automaton</div>
+            <div class="meta" id="metaEnhanced">-</div>
+          </div>
+          <div class="step-strip" id="stepEnhanced">Built from the Enhanced algorithm's own detected patterns.</div>
+          <div class="canvas-wrap"><svg id="svgEnhanced"></svg></div>
+          <div class="legend">
+            <span><span class="dot" style="background:#e9c46a"></span>End state (pattern match)</span>
+          </div>
+        </article>
+      </section>
+
+      <aside class="results-column" aria-label="Comparison results">
+        <section class="status" id="status">Type or extract a prescription, then click Build &amp; Compare.</section>
+
+        <section class="bench-wrap">
+          <div class="bench-head">
+            <div class="bench-title">Comparative Result</div>
+            <button id="downloadComparisonPdf" type="button" title="Download comparison as PDF">Download PDF</button>
+          </div>
+          <div class="bench-box" id="comparisonBox">Build the automata to compare Baseline vs Enhanced.</div>
+        </section>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    const SIGMA = Array.from("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,-/%()+:");
+    const CHAR_INDEX = new Map(SIGMA.map((c, i) => [c, i]));
+
+    const ui = {
+      prescription: document.getElementById("prescription"),
+      prescriptionImage: document.getElementById("prescriptionImage"),
+      extractImage: document.getElementById("extractImage"),
+      uploadStatus: document.getElementById("uploadStatus"),
+      patternsOriginal: document.getElementById("patternsOriginal"),
+      patternsEnhanced: document.getElementById("patternsEnhanced"),
+      buildRun: document.getElementById("buildRun"),
+      stepOriginal: document.getElementById("stepOriginal"),
+      stepEnhanced: document.getElementById("stepEnhanced"),
+      status: document.getElementById("status"),
+      metaOriginal: document.getElementById("metaOriginal"),
+      metaEnhanced: document.getElementById("metaEnhanced"),
+      comparisonBox: document.getElementById("comparisonBox"),
+      downloadComparisonPdf: document.getElementById("downloadComparisonPdf"),
+      svgOriginal: document.getElementById("svgOriginal"),
+      svgEnhanced: document.getElementById("svgEnhanced")
+    };
+
+    const sharedText = sessionStorage.getItem("medtermExtractorText");
+    if (sharedText && !ui.prescription.value.trim()) {
+      ui.prescription.value = sharedText;
+      ui.uploadStatus.textContent = "Prescription text restored from the main extractor.";
+    }
+
+    const state = {
+      automatonOriginal: null,
+      automatonEnhanced: null,
+      originalPatterns: [],
+      enhancedPatterns: []
+    };
+
+    function normalizeText(text) {
+      let t = (text || "").toUpperCase();
+      t = t.replace(/[^A-Z0-9 .,\-/%()+:]/g, " ");
+      t = t.replace(/\s+/g, " ").trim();
+      return t;
+    }
+
+    function canonicalizePatterns(patterns) {
+      return Array.from(new Set(patterns.map(pattern => normalizeText(pattern)).filter(Boolean)))
+        .sort((a, b) => a.localeCompare(b));
+    }
+
+    async function discoverPatterns(text, mode) {
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, mode })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Pattern extraction failed.");
+
+      const found = canonicalizePatterns(
+        (data.matches || []).map(match => match.matched_dictionary_term || match.term).filter(Boolean)
+      );
+      return found;
+    }
+
+    async function extractFromImage() {
+      const file = ui.prescriptionImage.files[0];
+      if (!file) {
+        ui.uploadStatus.textContent = "Choose a prescription image first.";
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("image", file);
+      ui.extractImage.disabled = true;
+      ui.uploadStatus.textContent = "Reading prescription image...";
+
+      try {
+        const response = await fetch("/api/ocr", { method: "POST", body: formData });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "OCR failed.");
+
+        const extracted = (data.text || "").trim();
+        if (!extracted) throw new Error("No text was detected in the image.");
+        ui.prescription.value = extracted;
+        ui.uploadStatus.textContent = `Extracted ${extracted.length} characters from the image.`;
+        ui.status.textContent = "Image text loaded. Click Build & Compare.";
+      } catch (err) {
+        ui.uploadStatus.textContent = `Image extraction failed: ${err.message}`;
+      } finally {
+        ui.extractImage.disabled = false;
+      }
+    }
+
+    function createNode(id) {
+      return { id, children: new Map(), fail: 0, outputs: [], depth: 0 };
+    }
+
+    function buildAutomaton(patterns) {
+      const nodes = [createNode(0)];
+
+      for (const pat of patterns) {
+        let cur = 0;
+        for (const ch of pat) {
+          if (!nodes[cur].children.has(ch)) {
+            const id = nodes.length;
+            nodes.push(createNode(id));
+            nodes[id].depth = nodes[cur].depth + 1;
+            nodes[cur].children.set(ch, id);
+          }
+          cur = nodes[cur].children.get(ch);
+        }
+        if (!nodes[cur].outputs.includes(pat)) nodes[cur].outputs.push(pat);
+      }
+
+      const q = [];
+      for (const [, childId] of nodes[0].children) {
+        nodes[childId].fail = 0;
+        q.push(childId);
+      }
+
+      while (q.length) {
+        const v = q.shift();
+        for (const [ch, u] of nodes[v].children) {
+          let f = nodes[v].fail;
+          while (f !== 0 && !nodes[f].children.has(ch)) f = nodes[f].fail;
+          if (nodes[f].children.has(ch)) nodes[u].fail = nodes[f].children.get(ch);
+          else nodes[u].fail = 0;
+          for (const out of nodes[nodes[u].fail].outputs) {
+            if (!nodes[u].outputs.includes(out)) nodes[u].outputs.push(out);
+          }
+          q.push(u);
+        }
+      }
+
+      return { nodes, patternCount: patterns.length };
+    }
+
+    function groupByDepth(nodes) {
+      const levels = [];
+      for (const n of nodes) {
+        if (!levels[n.depth]) levels[n.depth] = [];
+        levels[n.depth].push(n.id);
+      }
+      return levels;
+    }
+
+    function computePositions(nodes, width, height) {
+      const levels = groupByDepth(nodes);
+      const maxDepth = Math.max(0, levels.length - 1);
+      const pos = new Map();
+      const padX = 72;
+      const padY = 56;
+      const xSpan = Math.max(180, width - padX * 2);
+      const ySpan = Math.max(180, height - padY * 2);
+
+      levels.forEach((ids, depth) => {
+        const x = maxDepth === 0 ? width / 2 : padX + (depth / maxDepth) * xSpan;
+        const n = ids.length;
+        ids.forEach((id, i) => {
+          const y = n === 1 ? height / 2 : padY + (i / (n - 1)) * ySpan;
+          pos.set(id, { x, y });
+        });
+      });
+      return pos;
+    }
+
+    function svgEl(name, attrs = {}) {
+      const el = document.createElementNS("http://www.w3.org/2000/svg", name);
+      for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
+      return el;
+    }
+
+    function drawGraph(svg, automaton) {
+      const { nodes } = automaton;
+      const w = Math.max(1000, svg.clientWidth || 1000);
+      const h = Math.max(360, Math.max(360, nodes.length * 4));
+      svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+      svg.innerHTML = "";
+
+      const pos = computePositions(nodes, w, h);
+
+      for (const node of nodes) {
+        for (const [ch, child] of node.children) {
+          const a = pos.get(node.id);
+          const b = pos.get(child);
+          const line = svgEl("line", {
+            x1: a.x, y1: a.y, x2: b.x, y2: b.y,
+            stroke: "rgba(0,0,0,0.24)",
+            "stroke-width": 1.4
+          });
+          svg.appendChild(line);
+
+          const tx = (a.x + b.x) / 2;
+          const ty = (a.y + b.y) / 2;
+          const lbl = svgEl("text", {
+            x: tx, y: ty - 4,
+            "text-anchor": "middle",
+            "font-size": 9,
+            fill: "rgba(0,0,0,0.72)",
+            "font-family": "Times New Roman"
+          });
+          lbl.textContent = ch === " " ? "SP" : ch;
+          svg.appendChild(lbl);
+        }
+      }
+
+      for (const node of nodes) {
+        const p = pos.get(node.id);
+        let fill = "#ffffff";
+        let stroke = "rgba(0,0,0,0.45)";
+        let r = 10;
+        const isEnd = node.outputs.length > 0;
+
+        if (isEnd) {
+          fill = "#e9c46a";
+          stroke = "#9c7a2f";
+        }
+        if (node.id === 0) {
+          fill = "#2a9d8f";
+          stroke = "#196359";
+        }
+
+        const circle = svgEl("circle", { cx: p.x, cy: p.y, r, fill, stroke, "stroke-width": 1.8 });
+        svg.appendChild(circle);
+
+        if (isEnd) {
+          const endRing = svgEl("circle", { cx: p.x, cy: p.y, r: r + 5, fill: "none", stroke, "stroke-width": 1.8 });
+          svg.appendChild(endRing);
+        }
+
+        const txt = svgEl("text", {
+          x: p.x, y: p.y + 3, "text-anchor": "middle",
+          "font-size": 8, fill: "#1a1a1a", "font-family": "Times New Roman"
+        });
+        txt.textContent = String(node.id);
+        svg.appendChild(txt);
+      }
+    }
+
+    function setDiff(a, b) {
+      const bSet = new Set(b);
+      return a.filter(x => !bSet.has(x));
+    }
+
+    function buildComparisonText(text, originalPatterns, enhancedPatterns, automatonOriginal, automatonEnhanced) {
+      const onlyBaseline = setDiff(originalPatterns, enhancedPatterns);
+      const onlyEnhanced = setDiff(enhancedPatterns, originalPatterns);
+      const common = originalPatterns.filter(p => enhancedPatterns.includes(p));
+
+      const nodesBaseline = automatonOriginal.nodes.length;
+      const nodesEnhanced = automatonEnhanced.nodes.length;
+      const nodeDiff = nodesBaseline - nodesEnhanced;
+      const pct = nodesBaseline > 0 ? Math.abs(nodeDiff) / nodesBaseline * 100 : 0;
+      const direction = nodeDiff > 0 ? "smaller" : nodeDiff < 0 ? "larger" : "the same size as";
+
+      let out = "";
+      out += `Normalized text: ${text}\n\n`;
+      out += `Baseline AC\n`;
+      out += `  Patterns detected: ${originalPatterns.length}\n`;
+      out += `  Automaton nodes: ${nodesBaseline}\n\n`;
+      out += `Enhanced AC\n`;
+      out += `  Patterns detected: ${enhancedPatterns.length}\n`;
+      out += `  Automaton nodes: ${nodesEnhanced}\n\n`;
+      out += `Patterns in both: ${common.length}\n`;
+      out += `Patterns only in Baseline (raw/embedded substrings the Enhanced algorithm filtered out): ${onlyBaseline.length ? onlyBaseline.join(", ") : "none"}\n`;
+      out += `Patterns only in Enhanced (validated/composite terms the Baseline algorithm missed): ${onlyEnhanced.length ? onlyEnhanced.join(", ") : "none"}\n\n`;
+      if (nodeDiff === 0) {
+        out += `ENHANCED automaton has the same number of nodes as BASELINE (${nodesEnhanced}).`;
+      } else {
+        out += `ENHANCED automaton is ${pct.toFixed(1)}% ${direction} BASELINE (${nodesEnhanced} vs ${nodesBaseline} nodes).`;
+      }
+      return out;
+    }
+
+    async function buildAndCompare() {
+      ui.comparisonBox.textContent = "Comparing... results will appear shortly.";
+
+      const text = normalizeText(ui.prescription.value);
+      if (!text) {
+        ui.status.textContent = "Please provide a prescription, then click Build & Compare.";
+        return;
+      }
+
+      let originalPatterns = [];
+      let enhancedPatterns = [];
+
+      ui.status.textContent = "Finding dictionary patterns from the prescription...";
+      try {
+        [originalPatterns, enhancedPatterns] = await Promise.all([
+          discoverPatterns(text, "original"),
+          discoverPatterns(text, "enhanced")
+        ]);
+      } catch (err) {
+        ui.status.textContent = `Pattern extraction failed: ${err.message}`;
+        return;
+      }
+
+      ui.patternsOriginal.value = originalPatterns.join(", ");
+      ui.patternsEnhanced.value = enhancedPatterns.join(", ");
+
+      if (!originalPatterns.length && !enhancedPatterns.length) {
+        ui.status.textContent = "No patterns found. Try a different prescription.";
+        return;
+      }
+
+      // Each panel is built from its OWN engine's detected patterns —
+      // not a merged/shared list — so the two automata can genuinely differ.
+      const automatonOriginal = buildAutomaton(originalPatterns);
+      const automatonEnhanced = buildAutomaton(enhancedPatterns);
+
+      state.automatonOriginal = automatonOriginal;
+      state.automatonEnhanced = automatonEnhanced;
+      state.originalPatterns = originalPatterns;
+      state.enhancedPatterns = enhancedPatterns;
+
+      drawGraph(ui.svgOriginal, automatonOriginal);
+      drawGraph(ui.svgEnhanced, automatonEnhanced);
+
+      ui.metaOriginal.textContent = `nodes=${automatonOriginal.nodes.length} | patterns=${originalPatterns.length}`;
+      ui.metaEnhanced.textContent = `nodes=${automatonEnhanced.nodes.length} | patterns=${enhancedPatterns.length}`;
+      ui.stepOriginal.textContent = `Built from ${originalPatterns.length} Baseline-detected pattern(s).`;
+      ui.stepEnhanced.textContent = `Built from ${enhancedPatterns.length} Enhanced-detected pattern(s).`;
+
+      ui.comparisonBox.textContent = buildComparisonText(text, originalPatterns, enhancedPatterns, automatonOriginal, automatonEnhanced);
+      ui.status.textContent = `Baseline: ${originalPatterns.length} pattern(s), ${automatonOriginal.nodes.length} node(s).\nEnhanced: ${enhancedPatterns.length} pattern(s), ${automatonEnhanced.nodes.length} node(s).`;
+    }
+
+    ui.buildRun.addEventListener("click", buildAndCompare);
+    ui.extractImage.addEventListener("click", extractFromImage);
+
+    ui.downloadComparisonPdf.addEventListener("click", () => {
+      if (!state.automatonOriginal || !state.automatonEnhanced) {
+        ui.status.textContent = "Build & Compare before downloading the PDF.";
+        return;
+      }
+      if (!window.jspdf || !window.jspdf.jsPDF) {
+        ui.status.textContent = "PDF library failed to load. Check your internet connection and try again.";
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ unit: "pt", format: "a4" });
+      const margin = 40;
+      let y = margin;
+
+      doc.setFontSize(14);
+      doc.text("Baseline vs Enhanced Automaton — Comparative Result", margin, y);
+      y += 22;
+      doc.setFontSize(9);
+      doc.text(`Generated: ${new Date().toLocaleString()}`, margin, y);
+      y += 20;
+
+      doc.setFontSize(9);
+      const lines = doc.splitTextToSize(ui.comparisonBox.textContent, 515);
+      for (const line of lines) {
+        if (y > 780) { doc.addPage(); y = margin; }
+        doc.text(line, margin, y);
+        y += 12;
+      }
+
+      doc.save(`baseline-vs-enhanced-automaton-${new Date().toISOString().slice(0, 10)}.pdf`);
+    });
+
+    function clearResultsIfTextDeleted() {
+      if (ui.prescription.value.trim()) return;
+      state.automatonOriginal = null;
+      state.automatonEnhanced = null;
+      state.originalPatterns = [];
+      state.enhancedPatterns = [];
+      ui.patternsOriginal.value = "";
+      ui.patternsEnhanced.value = "";
+      ui.metaOriginal.textContent = "-";
+      ui.metaEnhanced.textContent = "-";
+      ui.stepOriginal.textContent = "Built from the Baseline algorithm's own detected patterns.";
+      ui.stepEnhanced.textContent = "Built from the Enhanced algorithm's own detected patterns.";
+      ui.comparisonBox.textContent = "Build the automata to compare Baseline vs Enhanced.";
+      ui.svgOriginal.innerHTML = "";
+      ui.svgEnhanced.innerHTML = "";
+    }
+
+    ui.prescription.addEventListener("input", clearResultsIfTextDeleted);
+  </script>
+
+      </div>
+    </div>
+  </div>
+</body>
+</html>
