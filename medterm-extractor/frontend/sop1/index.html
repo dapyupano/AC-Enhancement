@@ -1155,25 +1155,27 @@
       ui.pyBenchmarkBox.textContent = "Simulation running... comparative results will appear when the progress bar is complete.";
 
       let patterns = [];
+      let originalPatterns = [];
+      let enhancedPatterns = [];
       const text = normalizeText(ui.prescription.value);
 
       if (text) {
         ui.status.textContent = "Finding dictionary patterns from the prescription...";
         try {
-          const [originalPatterns, enhancedPatterns] = await Promise.all([
+          [originalPatterns, enhancedPatterns] = await Promise.all([
             discoverPatterns(text, "original"),
             discoverPatterns(text, "enhanced")
           ]);
           ui.patternsOriginal.value = originalPatterns.join(", ");
           ui.patternsEnhanced.value = enhancedPatterns.join(", ");
-          patterns = canonicalizePatterns([...originalPatterns, ...enhancedPatterns]);
+          patterns = canonicalizePatterns(originalPatterns);
         } catch (err) {
           ui.status.textContent = `Pattern extraction failed: ${err.message}`;
           return;
         }
       }
 
-      if (!patterns.length) {
+      if (!originalPatterns.length && !enhancedPatterns.length) {
         ui.status.textContent = "No patterns found. Upload or type a prescription first.";
         return;
       }
@@ -1184,8 +1186,8 @@
       }
 
       const t0 = performance.now();
-      const automatonOriginal = buildAutomaton(patterns);
-      const automatonEnhanced = buildAutomaton(patterns);
+      const automatonOriginal = buildAutomaton(originalPatterns);
+      const automatonEnhanced = buildAutomaton(enhancedPatterns);
       const t1 = performance.now();
       const simO = simulateOriginal(automatonOriginal, text);
       const t2 = performance.now();
@@ -1202,13 +1204,13 @@
       state.idx = -1;
       state.benchmarkStarted = false;
 
-      ui.metaOriginal.textContent = `nodes=${automatonOriginal.nodes.length} | patterns=${patterns.length} | build=${(t1 - t0).toFixed(2)}ms | run=${(t2 - t1).toFixed(2)}ms`;
-      ui.metaEnhanced.textContent = `nodes=${automatonEnhanced.nodes.length} | patterns=${patterns.length} | skipReady=yes | run=${(t3 - t2).toFixed(2)}ms`;
+      ui.metaOriginal.textContent = `nodes=${automatonOriginal.nodes.length} | patterns=${originalPatterns.length} | build=${(t1 - t0).toFixed(2)}ms | run=${(t2 - t1).toFixed(2)}ms`;
+      ui.metaEnhanced.textContent = `nodes=${automatonEnhanced.nodes.length} | patterns=${enhancedPatterns.length} | skipReady=yes | run=${(t3 - t2).toFixed(2)}ms`;
 
       renderSkipTable(automatonEnhanced);
 
       ui.status.textContent =
-        `Patterns: ${patterns.length}.\n` +
+        `Original patterns: ${originalPatterns.length}. Enhanced patterns: ${enhancedPatterns.length}.\n` +
         `Original total failure hops: ${simO.hopsTotal}.\n` +
         `Enhanced uses precomputed skip table transitions only.`;
 

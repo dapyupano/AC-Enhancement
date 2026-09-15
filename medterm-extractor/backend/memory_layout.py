@@ -1,8 +1,8 @@
 """
 memory_layout.py
 
-Prints, to the Python terminal running app.py, the real memory addresses
-of trie nodes for the patterns detected in ONE prescription run:
+Builds the real memory addresses of trie nodes for the patterns detected
+in ONE prescription run:
 
   BASELINE       -- OriginalAhoCorasick built from just the patterns
                      found in this prescription. Each node is a separate
@@ -17,8 +17,8 @@ of trie nodes for the patterns detected in ONE prescription run:
                      address -- a fixed stride, evenly spaced, matching
                      Figure 4.8.
 
-Called from app.py's /api/analyze route (SOP 2 "Run" button only), the
-same way /api/benchmark prints SOP 1's trial timings.
+Called from app.py's /api/analyze route (SOP 2 "Run" button only). The
+layout is returned to the SOP 2 page so the terminal stays quiet.
 """
 
 import ctypes
@@ -80,27 +80,23 @@ def _depths(root):
     return depths
 
 
-def print_run_memory_layout(detected_terms, max_print=40):
+def get_run_memory_layout(detected_terms, max_print=40):
     """
     detected_terms: list[str] of the pattern terms matched in this
     prescription (same list SOP 2's frontend uses to draw the node graph).
 
-    Prints BASELINE and TWO-PASS BFS side by side in two columns, since
+    Returns BASELINE and TWO-PASS BFS side by side in aligned rows, since
     both are built from the identical pattern set with the identical
     sorted-key BFS shape -- row i on the left and row i on the right are
     always the same logical trie node (same depth, same character),
     only their addresses differ.
     """
     if not detected_terms:
-        print("\n[SOP 2] No patterns detected in this prescription -- skipping memory layout dump.\n")
-        return
+        return None
 
     patterns = [(t, "", "") for t in detected_terms]
     baseline = OriginalAhoCorasick(patterns)
     enhanced = EnhancedAhoCorasick(patterns)
-
-    print(f"\n[SOP 2] Two-Pass BFS memory layout for this run "
-          f"-- {len(detected_terms)} pattern(s): {detected_terms}")
 
     # ---- BASELINE: scattered heap addresses ----
     b_nodes = _bfs_walk_original(baseline.root)
@@ -114,30 +110,33 @@ def print_run_memory_layout(detected_terms, max_print=40):
     base_addr = ctypes.addressof(buf)
     stride = ctypes.sizeof(ctypes.c_void_p)
 
-    COL = 42
     n = min(len(b_nodes), len(e_nodes), max_print)
-
-    left_header = f"BASELINE -- {len(b_nodes)} nodes (scattered)"
-    right_header = f"TWO-PASS BFS -- {len(e_nodes)} nodes (contiguous)"
-    print(f"{left_header:<{COL}} | {right_header}")
-    print(f"{'-' * COL}-+-{'-' * COL}")
-
+    rows = []
     last_depth = None
     for i in range(n):
         bn, en = b_nodes[i], e_nodes[i]
         depth = b_depths[id(bn)]
-        if depth != last_depth:
-            marker = f"-- depth {depth} --"
-            print(f"{marker:<{COL}} | {marker}")
-            last_depth = depth
-
-        left = f"{id(bn):#012x} -> {b_labels.get(id(bn), '?')}"
+        depth_marker = depth if depth != last_depth else None
+        last_depth = depth
         slot_addr = base_addr + i * stride
-        right = f"{slot_addr:#012x} -> rank={en.bfs_rank:<3}{e_labels.get(id(en), '?')}"
-        print(f"{left:<{COL}} | {right}")
+        rows.append({
+            "depth": depth_marker,
+            "original": {
+                "address": f"{id(bn):#012x}",
+                "label": b_labels.get(id(bn), "?"),
+            },
+            "bfs": {
+                "address": f"{slot_addr:#012x}",
+                "rank": en.bfs_rank,
+                "label": e_labels.get(id(en), "?"),
+            },
+        })
 
-    if len(b_nodes) > max_print or len(e_nodes) > max_print:
-        remaining = max(len(b_nodes), len(e_nodes)) - max_print
-        print(f"... ({remaining} more nodes not shown)")
-
-    print(f"\nStride between TWO-PASS BFS slots: {stride} bytes -> fully contiguous\n")
+    return {
+        "patterns": detected_terms,
+        "original_count": len(b_nodes),
+        "bfs_count": len(e_nodes),
+        "stride": stride,
+        "rows": rows,
+        "truncated": len(b_nodes) > max_print or len(e_nodes) > max_print,
+    }

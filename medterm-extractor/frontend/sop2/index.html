@@ -27,6 +27,18 @@
   .buttons button.alt { background: var(--orange); color: #fff; border-color: transparent; }
   .buttons button.icon-btn { background: var(--orange); color: #fff; border-color: transparent; width: 2.4rem; height: 2.4rem; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 1rem; line-height: 1; }
   .buttons button.icon-btn:hover { background: var(--teal); }
+  .layout-head { padding: .8rem 1rem; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 1rem; align-items: baseline; font-weight: 700; }
+  .layout-head small { font: .78rem "Times New Roman", monospace; color: var(--muted); font-weight: 400; }
+  .layout-table-wrap { max-height: 620px; overflow: auto; background: #fbfdfc; }
+  .layout-table { border-collapse: collapse; width: 100%; min-width: 680px; table-layout: fixed; font: .8rem "Times New Roman", monospace; }
+  .layout-table th, .layout-table td { border: 1px solid var(--line); padding: .42rem .55rem; text-align: left; white-space: nowrap; }
+  .layout-table th { background: #e7f1ed; position: sticky; top: 0; z-index: 1; }
+  .layout-table thead tr:nth-child(2) th { top: 2rem; }
+  .layout-table th:first-child, .layout-table td:first-child { width: 7rem; text-align: center; }
+  .layout-table th:nth-child(4), .layout-table td:nth-child(4) { width: 5rem; text-align: center; }
+  .layout-table th:nth-child(5), .layout-table td:nth-child(5) { width: 5rem; text-align: center; }
+  .layout-table .bfs-col { background: #f2f8f5; }
+  .layout-table .depth-marker { font-weight: 700; color: var(--teal); }
 </style>
 </head>
 <body>
@@ -66,39 +78,12 @@
 <div class="controls"><div class="field"><span class="label">Prescription image</span><div class="upload"><input id="image" type="file" accept="image/*"><button id="ocr" class="primary">Extract</button></div><textarea id="prescription" placeholder="Type or extract a prescription here..."></textarea></div><div class="field-stack"><div class="field"><span class="label">Original Aho-Corasick patterns</span><textarea id="patternsOriginal" placeholder="Original algorithm patterns will appear here..." readonly></textarea></div><div class="field"><span class="label">Enhanced Aho-Corasick patterns</span><textarea id="patternsEnhanced" placeholder="Enhanced algorithm patterns will appear here..." readonly></textarea></div></div></div>
 <div class="buttons">
   <div class="buttons-left"><button id="build" class="primary">Run</button></div>
-  <div class="buttons-right">
-    <button id="prev" class="icon-btn" title="Prev" aria-label="Prev">&laquo;</button>
-    <button id="next" class="icon-btn" title="Next" aria-label="Next">&raquo;</button>
-    <button id="play" class="alt">Play</button>
-    <button id="reset" class="icon-btn" title="Reset" aria-label="Reset">&#8635;</button>
-    <label class="label" for="speed">Speed</label>
-    <select id="speed" class="speed-control"><option value="900">Slow</option><option value="500" selected>Medium</option><option value="220">Fast</option></select>
-    <label class="label" for="iterations">Iterations</label>
-    <input id="iterations" type="number" min="100" step="100" value="50000" />
-  </div>
 </div></section>
-<div class="progress"><span id="bar"></span></div><div class="cmp-layout"><section class="panels"><article class="panel"><div class="head">Original: insertion order <span class="meta" id="ometa">-</span></div><div class="step" id="ostep">Waiting...</div><div class="canvas"><svg id="osvg"></svg></div></article><article class="panel"><div class="head">Enhanced: two-pass BFS <span class="meta" id="emeta">-</span></div><div class="step" id="estep">Waiting...</div><div class="canvas"><svg id="esvg"></svg></div></article></section><aside class="side"><section class="status" id="status">Waiting for prescription input.</section><section class="bench-wrap"><div class="bench-title">Comparative Result</div><div class="bench-box" id="result">Build the simulation to see node-order and locality results.</div></section></aside></div><section class="skip"><h2>Detected Patterns</h2><div class="note" id="detected">Patterns will appear after Build + Run.</div><div class="note" style="margin-top:.55rem"><strong>Figure legend</strong><br><span style="color:#dfeaf5">●</span> Original insertion-order state<br><span style="color:#176b63">●</span> Enhanced BFS state<br><span style="color:#c65f3d">●</span> Current state being visited<br>Node IDs represent memory positions; connecting lines are trie transitions.</div></section></div>
+        <div class="progress"><span id="bar"></span></div><div class="cmp-layout"><section class="panel"><div class="layout-head"><span>Memory layout for this run</span><small id="layoutMeta">Waiting...</small></div><div class="layout-table-wrap"><table class="layout-table"><thead><tr><th rowspan="2">Depth</th><th colspan="2">Original</th><th colspan="3" class="bfs-col">Enhanced two-pass BFS</th></tr><tr><th>Address</th><th>Node</th><th class="bfs-col">Address</th><th class="bfs-col">Node</th><th class="bfs-col">Rank</th></tr></thead><tbody id="layoutRows"><tr><td colspan="6">Build the memory layout to see the node addresses.</td></tr></tbody></table></div></section><aside class="side"><section class="status" id="status">Waiting for prescription input.</section><section class="bench-wrap"><div class="bench-title">Comparative Result</div><div class="bench-box" id="result">Build the memory layout to see the comparison.</div></section></aside></div></div>
 <script>
 const $ = id => document.getElementById(id);
 const INITIAL_STATUS = 'SOP 2 compares scattered insertion-order nodes with a contiguous two-pass BFS layout to improve memory locality.';
-function addFigureLegends() {
-  const legends = [
-    ['osvg', '<span style="color:#929292">●</span> Trie state<br><span style="color:#e9c46a">●</span> End state<br><span style="color:#2a9d8f">●</span> Current state being visited'],
-    ['esvg', '<span style="color:#929292">●</span> Trie state<br><span style="color:#e9c46a">●</span> End state<br><span style="color:#2a9d8f">●</span> Current state being visited']
-  ];
-  legends.forEach(([svgId, content]) => {
-    const svg = $(svgId);
-    const legend = document.createElement('div');
-    legend.className = 'legend';
-    legend.style.cssText = 'padding:.55rem .9rem;border-top:1px solid var(--line);font:.72rem Times New Roman,monospace;line-height:1.5';
-    legend.innerHTML = content;
-    svg.parentElement.after(legend);
-  });
-  const oldLegend = document.querySelector('.skip .note[style]');
-  if (oldLegend) oldLegend.remove();
-}
-addFigureLegends();
-const S = { nodes: [], patterns: [], text: '', i: -1, timer: null, metrics: null, resultReady: false };
+const S = { nodes: [], patterns: [], text: '', i: -1, timer: null, metrics: null, memoryLayout: null, resultReady: false };
 const sharedText = sessionStorage.getItem('medtermExtractorText');
 if (sharedText) {
   $('prescription').value = sharedText;
@@ -122,7 +107,10 @@ async function patternsFor(text, mode) {
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'Pattern discovery failed.');
-  return canonicalizePatterns((data.matches || []).map(m => m.matched_dictionary_term || m.term).filter(Boolean));
+  return {
+    patterns: canonicalizePatterns((data.matches || []).map(m => m.matched_dictionary_term || m.term).filter(Boolean)),
+    memoryLayout: data.memory_layout || null
+  };
 }
 
 function buildTrie(patterns) {
@@ -329,29 +317,47 @@ function drawNodeGraph(svg, layout, highlightId, mode) {
   }
 }
 
+function renderMemoryLayout(layout) {
+  const rows = $('layoutRows');
+  rows.innerHTML = '';
+  if (!layout) {
+    rows.innerHTML = '<tr><td colspan="6">No memory layout was returned for this run.</td></tr>';
+    $('layoutMeta').textContent = 'No patterns detected';
+    return;
+  }
+
+  $('layoutMeta').textContent = `${layout.original_count} nodes | stride ${layout.stride} bytes`;
+  for (const row of layout.rows) {
+    if (row.depth !== null) {
+      const depthRow = document.createElement('tr');
+      depthRow.innerHTML = `<td class="depth-marker">-- depth ${row.depth} --</td><td></td><td></td><td class="bfs-col"></td><td class="bfs-col"></td><td class="bfs-col"></td>`;
+      rows.appendChild(depthRow);
+    }
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td></td><td>${row.original.address}</td><td>${row.original.label}</td><td class="bfs-col">${row.bfs.address}</td><td class="bfs-col">${row.bfs.label}</td><td class="bfs-col">${row.bfs.rank}</td>`;
+    rows.appendChild(tr);
+  }
+  if (layout.truncated) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td colspan="6">... additional nodes not shown</td>';
+    rows.appendChild(tr);
+  }
+}
+
 function render() {
-  if (!S.nodes || !S.nodes.original || !S.nodes.enhanced || !S.nodes.original.length || !S.nodes.enhanced.length) return;
-  const currentStep = S.steps[Math.max(0, Math.min(S.i, S.steps.length - 1))] || { original: 0, enhanced: 0, char: '-' };
-  drawNodeGraph($('osvg'), S.nodes.original, currentStep.original, 'original');
-  drawNodeGraph($('esvg'), S.nodes.enhanced, currentStep.enhanced, 'enhanced');
-
-  const progress = S.steps.length ? ((S.i + 1) / S.steps.length) * 100 : 0;
-  $('bar').style.width = `${Math.min(100, Math.max(0, progress))}%`;
-  if (S.steps.length && S.i >= S.steps.length - 1) S.resultReady = true;
-
-  const charText = currentStep.char === ' ' ? '[space]' : currentStep.char;
-  $('ostep').textContent = `char=${charText} | insertion node=${currentStep.original}`;
-  $('estep').textContent = `char=${charText} | BFS node=${currentStep.enhanced}`;
-  $('status').textContent =
-    `Text length: ${S.text.length} | Step: ${Math.max(0, S.i + 1)}/${S.steps.length}\n` +
-    `Original insertion-order node: ${currentStep.original}\n` +
-    `Enhanced BFS node: ${currentStep.enhanced}\n` +
-    `Current char: ${charText}\n` +
-    (S.resultReady ? 'Traversal complete.' : 'Simulating node layout...');
+  if (!S.memoryLayout) return;
+  renderMemoryLayout(S.memoryLayout);
+  $('bar').style.width = '100%';
+  S.resultReady = true;
+  $('status').textContent = `Memory layout ready: ${S.memoryLayout.original_count} original nodes and ${S.memoryLayout.bfs_count} contiguous BFS nodes.`;
+  $('result').textContent = [
+    `Original nodes: ${S.memoryLayout.original_count} (scattered addresses)`,
+    `Two-pass BFS nodes: ${S.memoryLayout.bfs_count} (contiguous addresses)`,
+    `BFS slot stride: ${S.memoryLayout.stride} bytes`,
+    `Patterns used: ${S.memoryLayout.patterns.length}`
+  ].join('\n');
 
   if (S.metrics && S.resultReady) {
-    $('ometa').textContent = `avg child gap=${S.metrics.originalGap.toFixed(1)}`;
-    $('emeta').textContent = `avg child gap=${S.metrics.enhancedGap.toFixed(1)} | reduction=${S.metrics.reduction.toFixed(1)}%`;
     const maxGap = Math.max(S.metrics.originalGap, S.metrics.enhancedGap, 1);
     const originalWidth = Math.max(3, S.metrics.originalGap / maxGap * 100);
     const enhancedWidth = Math.max(3, S.metrics.enhancedGap / maxGap * 100);
@@ -371,25 +377,10 @@ function render() {
   }
 }
 
-function play() {
-  clearInterval(S.timer);
-  $('play').textContent = 'Pause';
-  S.timer = setInterval(() => {
-    if (S.i >= S.steps.length - 1) {
-      clearInterval(S.timer);
-      $('play').textContent = 'Play';
-      render();
-      return;
-    }
-    S.i += 1;
-    render();
-  }, Number($('speed').value));
-}
-
 $('build').onclick = async () => {
   clearInterval(S.timer);
   S.resultReady = false;
-  $('result').textContent = 'Simulation running... comparative results will appear when the progress bar is complete.';
+  $('result').textContent = 'Building the memory layout...';
   const text = norm($('prescription').value);
   if (!text) {
     $('status').textContent = 'Provide prescription text first.';
@@ -397,39 +388,32 @@ $('build').onclick = async () => {
   }
 
   try {
-    const [originalPatterns, enhancedPatterns] = await Promise.all([
+    const [originalResult, enhancedResult] = await Promise.all([
       patternsFor(text, 'original'),
       patternsFor(text, 'enhanced')
     ]);
+    const originalPatterns = originalResult.patterns;
+    const enhancedPatterns = enhancedResult.patterns;
     $('patternsOriginal').value = originalPatterns.join(', ');
     $('patternsEnhanced').value = enhancedPatterns.join(', ');
-    const patterns = canonicalizePatterns([...originalPatterns, ...enhancedPatterns]);
+    const patterns = enhancedPatterns;
     if (!patterns.length) {
       $('status').textContent = 'No dictionary patterns found.';
-      $('osvg').innerHTML = '';
-      $('esvg').innerHTML = '';
+      $('layoutRows').innerHTML = '<tr><td colspan="6">No patterns were detected for this text.</td></tr>';
+      $('layoutMeta').textContent = 'No patterns detected';
       $('result').textContent = 'No patterns were detected for this text.';
       return;
     }
-    $('detected').textContent = patterns.join(', ');
-
-    const trie = buildTrie(patterns);
-    const layout = computeBfsOrder(trie);
     S.patterns = patterns;
     S.text = text;
-    S.nodes = { original: layout.original, enhanced: layout.enhanced };
-    S.metrics = {
-      originalGap: layout.originalGap,
-      enhancedGap: layout.enhancedGap,
-      reduction: layout.reduction
-    };
-
-    S.steps = buildTraversalSteps(S.nodes, text);
+    S.memoryLayout = enhancedResult.memoryLayout;
+    S.nodes = [];
+    S.metrics = null;
+    S.steps = [];
     S.i = 0;
 
-    $('status').textContent = 'BFS layout comparison ready. The enhanced ordering keeps closely related nodes nearer together.';
+    $('status').textContent = 'Loading the original and two-pass BFS memory layout...';
     render();
-    play();
   } catch (err) {
     $('status').textContent = err.message;
   }
@@ -442,8 +426,9 @@ function clearResultsIfTextDeleted() {
   S.nodes = [];
   S.steps = [];
   S.metrics = null;
-  $('osvg').innerHTML = '';
-  $('esvg').innerHTML = '';
+  S.memoryLayout = null;
+  $('layoutRows').innerHTML = '<tr><td colspan="6">Build the memory layout to see the node addresses.</td></tr>';
+  $('layoutMeta').textContent = 'Waiting...';
   $('bar').style.width = '0%';
   $('result').textContent = 'Build the simulation to see node-order and locality results.';
   $('status').textContent = INITIAL_STATUS;
@@ -477,35 +462,6 @@ $('ocr').onclick = async () => {
   }
 };
 
-$('prev').onclick = () => {
-  clearInterval(S.timer);
-  S.i = Math.max(0, S.i - 1);
-  render();
-};
-
-$('next').onclick = () => {
-  clearInterval(S.timer);
-  S.i = Math.min(S.steps.length - 1, S.i + 1);
-  render();
-};
-
-$('play').onclick = () => {
-  if (S.timer) {
-    clearInterval(S.timer);
-    S.timer = null;
-    $('play').textContent = 'Play';
-    return;
-  }
-  play();
-};
-
-$('reset').onclick = () => {
-  clearInterval(S.timer);
-  S.timer = null;
-  S.i = 0;
-  $('play').textContent = 'Play';
-  render();
-};
 </script>
 </div>
 </div>

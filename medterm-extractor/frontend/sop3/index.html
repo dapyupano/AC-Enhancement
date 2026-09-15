@@ -80,6 +80,7 @@ const $ = id => document.getElementById(id);
 document.querySelector('.sub').textContent = 'Upload or type a prescription, review the extracted search text and all matched patterns, then watch both automata traverse it.';
 const speedControl = $('speed');
 const INITIAL_STATUS = 'SOP 3 compares full-alphabet transition rows with hot dense states and cold sparse states to reduce storage.';
+const FULL_ALPHABET = Array.from('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,-/%()+:');
 function addFigureLegends() {
   const legends = [
     ['osvg', '<span style="color:#929292">●</span> Original insertion-order state<br><span style="color:#e9c46a">◎</span> End state<br><span style="color:#2a9d8f">●</span> Current state being visited'],
@@ -97,7 +98,7 @@ function addFigureLegends() {
   if (oldLegend) oldLegend.remove();
 }
 addFigureLegends();
-const S = { nodes: [], text: '', steps: [], i: 0, timer: null, metrics: null, resultReady: false };
+const S = { originalNodes: [], enhancedNodes: [], text: '', steps: [], i: 0, timer: null, metrics: null, resultReady: false };
 const THETA = 4;
 const sharedText = sessionStorage.getItem('medtermExtractorText');
 if (sharedText) {
@@ -139,6 +140,23 @@ function buildTrie(patterns) {
     }
     nodes[current].output.push(pattern);
   }
+
+  const failures = Array(nodes.length).fill(0);
+  const queue = [...nodes[0].children.values()];
+  while (queue.length) {
+    const state = queue.shift();
+    for (const [char, child] of nodes[state].children) {
+      let fallback = failures[state];
+      while (fallback && !nodes[fallback].children.has(char)) fallback = failures[fallback];
+      const transition = nodes[fallback].children.get(char);
+      failures[child] = transition !== undefined && transition !== child ? transition : 0;
+      for (const output of nodes[failures[child]].output) {
+        if (!nodes[child].output.includes(output)) nodes[child].output.push(output);
+      }
+      queue.push(child);
+    }
+  }
+
   return nodes;
 }
 
@@ -150,49 +168,69 @@ function getAlphabet(trieNodes) {
   return [...new Set(trieNodes.flatMap(node => [...node.children.keys()]))].sort((a, b) => a.localeCompare(b));
 }
 
-function buildTraversalSteps(nodes, text) {
-  const failures = Array(nodes.length).fill(0);
-  const queue = [...nodes[0].children.values()];
-  while (queue.length) {
-    const state = queue.shift();
-    for (const [char, child] of nodes[state].children) {
-      let fallback = failures[state];
-      while (fallback && !nodes[fallback].children.has(char)) fallback = failures[fallback];
-      const transition = nodes[fallback].children.get(char);
-      failures[child] = transition !== undefined && transition !== child ? transition : 0;
-      queue.push(child);
+function buildTraversalSteps(originalNodes, enhancedNodes, text) {
+  const failuresFor = nodes => {
+    const failures = Array(nodes.length).fill(0);
+    const queue = [...nodes[0].children.values()];
+    while (queue.length) {
+      const state = queue.shift();
+      for (const [char, child] of nodes[state].children) {
+        let fallback = failures[state];
+        while (fallback && !nodes[fallback].children.has(char)) fallback = failures[fallback];
+        const transition = nodes[fallback].children.get(char);
+        failures[child] = transition !== undefined && transition !== child ? transition : 0;
+        queue.push(child);
+      }
     }
-  }
-  let state = 0;
+    return failures;
+  };
+  const originalFailures = failuresFor(originalNodes);
+  const enhancedFailures = failuresFor(enhancedNodes);
+  let originalState = 0;
+  let enhancedState = 0;
   return [...text].map(char => {
-    let transition = nodes[state].children.get(char);
-    while (transition === undefined && state) {
-      state = failures[state];
-      transition = nodes[state].children.get(char);
+    let originalTransition = originalNodes[originalState].children.get(char);
+    while (originalTransition === undefined && originalState) {
+      originalState = originalFailures[originalState];
+      originalTransition = originalNodes[originalState].children.get(char);
     }
-    state = transition === undefined ? 0 : transition;
-    return { char, original: state, enhanced: state };
+    originalState = originalTransition === undefined ? 0 : originalTransition;
+
+    let enhancedTransition = enhancedNodes[enhancedState].children.get(char);
+    while (enhancedTransition === undefined && enhancedState) {
+      enhancedState = enhancedFailures[enhancedState];
+      enhancedTransition = enhancedNodes[enhancedState].children.get(char);
+    }
+    enhancedState = enhancedTransition === undefined ? 0 : enhancedTransition;
+    return { char, original: originalState, enhanced: enhancedState };
   });
 }
 
-function computeStorageSummary(trieNodes, alphabetSize, alphabet) {
-  const totalStates = trieNodes.length;
-  const hotStates = trieNodes.filter(node => node.children.size >= THETA).length;
-  const coldStates = totalStates - hotStates;
-  const baselineStorage = totalStates * alphabetSize;
-  const hotDenseStorage = hotStates * alphabetSize;
-  const coldSparseStorage = trieNodes.filter(node => node.children.size < THETA).reduce((sum, node) => sum + node.children.size, 0);
+function computeStorageSummary(originalNodes, enhancedNodes) {
+  const alphabetSize = FULL_ALPHABET.length;
+  const enhancedAlphabet = getAlphabet(enhancedNodes);
+  const enhancedAlphabetSize = enhancedAlphabet.length;
+  const originalStorage = originalNodes.length * alphabetSize;
+  const hotStates = enhancedNodes.filter(node => node.children.size >= THETA).length;
+  const coldStates = enhancedNodes.length - hotStates;
+  const hotDenseStorage = hotStates * enhancedAlphabetSize;
+  const coldSparseStorage = enhancedNodes
+    .filter(node => node.children.size < THETA)
+    .reduce((sum, node) => sum + node.children.size, 0);
   const enhancedStorage = hotDenseStorage + coldSparseStorage;
-  const saved = baselineStorage - enhancedStorage;
-  const savedPercent = baselineStorage ? (saved / baselineStorage) * 100 : 0;
+  const saved = originalStorage - enhancedStorage;
+  const savedPercent = originalStorage ? (saved / originalStorage) * 100 : 0;
 
   return {
-    totalStates,
-    alphabetSize,
-    alphabet,
+    originalStates: originalNodes.length,
+    originalAlphabetSize: alphabetSize,
+    originalAlphabet: FULL_ALPHABET,
+    originalStorage,
+    totalStates: enhancedNodes.length,
+    alphabetSize: enhancedAlphabetSize,
+    alphabet: enhancedAlphabet,
     hotStates,
     coldStates,
-    baselineStorage,
     hotDenseStorage,
     coldSparseStorage,
     enhancedStorage,
@@ -297,44 +335,44 @@ function drawNodeGraph(svg, trieNodes, currentId, highlightHot) {
 }
 
 function render() {
-  if (!S.nodes.length) return;
+  if (!S.originalNodes.length || !S.enhancedNodes.length) return;
   const step = S.steps[Math.max(0, Math.min(S.i, S.steps.length - 1))] || { char: '-', original: 0, enhanced: 0 };
-  drawNodeGraph($('osvg'), S.nodes, step.original, false);
-  drawNodeGraph($('esvg'), S.nodes, step.enhanced, true);
+  drawNodeGraph($('osvg'), S.originalNodes, step.original, false);
+  drawNodeGraph($('esvg'), S.enhancedNodes, step.enhanced, true);
   const charText = step.char === ' ' ? '[space]' : step.char;
   $('ostep').textContent = `step ${Math.max(0, S.i + 1)}/${S.steps.length} | char=${charText} | full row`;
-  $('estep').textContent = `step ${Math.max(0, S.i + 1)}/${S.steps.length} | char=${charText} | ${S.nodes[step.enhanced].children.size >= THETA ? 'hot dense row' : 'cold sparse row'}`;
+  $('estep').textContent = `step ${Math.max(0, S.i + 1)}/${S.steps.length} | char=${charText} | ${S.enhancedNodes[step.enhanced].children.size >= THETA ? 'hot dense row' : 'cold sparse row'}`;
   $('bar').style.width = `${Math.min(100, (S.i + 1) / Math.max(1, S.steps.length) * 100)}%`;
   if (S.steps.length && S.i >= S.steps.length - 1) S.resultReady = true;
-  const currentNode = S.nodes[step.enhanced];
+  const currentNode = S.enhancedNodes[step.enhanced];
   const currentTier = currentNode.children.size >= THETA ? 'hot dense row' : 'cold sparse row';
   $('status').textContent =
     `Text length: ${S.text.length} | Step: ${Math.max(0, S.i + 1)}/${S.steps.length}\n` +
     `Current char: ${charText}\n` +
     (S.resultReady ? 'Traversal complete.' : 'Simulating transition storage...');
 
-  if (S.metrics && S.resultReady) {
-    $('ometa').textContent = `baseline=${S.metrics.baselineStorage} cells`;
+  if (S.metrics) {
+    $('ometa').textContent = `original=${S.metrics.originalStorage} cells`;
     $('emeta').textContent = `hot=${S.metrics.hotStates} | cold=${S.metrics.coldStates} | saved=${S.metrics.saved.toFixed(0)} cells`;
-    const maxStorage = Math.max(S.metrics.baselineStorage, S.metrics.enhancedStorage, 1);
-    const baselineWidth = Math.max(3, S.metrics.baselineStorage / maxStorage * 100);
+    const maxStorage = Math.max(S.metrics.originalStorage, S.metrics.enhancedStorage, 1);
+    const baselineWidth = Math.max(3, S.metrics.originalStorage / maxStorage * 100);
     const enhancedWidth = Math.max(3, S.metrics.enhancedStorage / maxStorage * 100);
     const alphabetLabel = S.metrics.alphabet.map(ch => ch === ' ' ? '[space]' : ch).join(' ');
     $('result').innerHTML = [
-      `Unique characters (${S.metrics.alphabetSize}): ${alphabetLabel}`,
-      `Baseline full-row storage: ${S.metrics.totalStates} states × ${S.metrics.alphabetSize} chars = ${S.metrics.baselineStorage} cells`,
-      `Enhanced hot-row storage: ${S.metrics.hotStates} hot states × ${S.metrics.alphabetSize} chars = ${S.metrics.hotDenseStorage} cells`,
-      `Enhanced cold sparse storage: ${S.metrics.coldSparseStorage} cells`,
-      `Enhanced total storage: ${S.metrics.enhancedStorage} cells`,
-      `Storage saved: ${S.metrics.saved.toFixed(0)} cells (${S.metrics.savedPercent.toFixed(1)}%)`,
+      `Enhanced unique pattern characters (|Σ| = ${S.metrics.alphabetSize}): ${alphabetLabel}`,
+      `Original transition matrix: |S| × |Σ| = ${S.metrics.originalStates} × ${S.metrics.originalAlphabetSize} = ${S.metrics.originalStorage} cells`,
+      `Enhanced hot storage: ${S.metrics.hotStates} hot states × ${S.metrics.alphabetSize} unique characters = ${S.metrics.hotDenseStorage} cells`,
+      `Enhanced cold sparse storage: Σ cold d(v) = ${S.metrics.coldSparseStorage} cells`,
+      `Enhanced tiered formula: Σ hot |Σ| + Σ cold d(v) = ${S.metrics.hotDenseStorage} + ${S.metrics.coldSparseStorage} = ${S.metrics.enhancedStorage} cells`,
+      `Memory saved: ${S.metrics.saved.toFixed(0)} cells (${S.metrics.savedPercent.toFixed(1)}%)`,
       `Hot states: ${S.metrics.hotStates}, cold states: ${S.metrics.coldStates}`,
-      `<div style="margin-top:.7rem;border-top:1px solid #d9cdbb;padding-top:.6rem">Original full rows <span style="display:inline-block;width:${baselineWidth}%;height:9px;background:#3978a8;border-radius:3px"></span> ${S.metrics.baselineStorage}</div>`,
+      `<div style="margin-top:.7rem;border-top:1px solid #d9cdbb;padding-top:.6rem">Original full rows <span style="display:inline-block;width:${baselineWidth}%;height:9px;background:#3978a8;border-radius:3px"></span> ${S.metrics.originalStorage}</div>`,
       `<div>Enhanced tiers <span style="display:inline-block;width:${enhancedWidth}%;height:9px;background:#176b63;border-radius:3px"></span> ${S.metrics.enhancedStorage}</div>`
     ].join('<br>');
-    $('storage').innerHTML = S.nodes.map(node => {
+    $('storage').innerHTML = S.enhancedNodes.map(node => {
       const enhancedCells = node.children.size >= THETA ? S.metrics.alphabetSize : node.children.size;
       const tier = node.children.size >= THETA ? 'Hot / dense' : 'Cold / sparse';
-      return `<tr><td>${node.id}</td><td>${S.metrics.alphabetSize}</td><td>${enhancedCells}</td><td>${tier}</td></tr>`;
+      return `<tr><td>${node.id}</td><td>${S.metrics.originalAlphabetSize}</td><td>${enhancedCells}</td><td>${tier}</td></tr>`;
     }).join('');
   }
 }
@@ -372,8 +410,7 @@ $('build').onclick = async () => {
     ]);
     $('patternsOriginal').value = originalPatterns.join(', ');
     $('patternsEnhanced').value = enhancedPatterns.join(', ');
-    const patterns = canonicalizePatterns([...originalPatterns, ...enhancedPatterns]);
-    if (!patterns.length) {
+    if (!originalPatterns.length && !enhancedPatterns.length) {
       $('status').textContent = 'No dictionary patterns found.';
       $('osvg').innerHTML = '';
       $('esvg').innerHTML = '';
@@ -382,14 +419,14 @@ $('build').onclick = async () => {
       return;
     }
 
-    const trieNodes = buildTrie(patterns);
-    const alphabet = getAlphabet(trieNodes);
-    const alphabetSize = alphabet.length;
-    const metrics = computeStorageSummary(trieNodes, alphabetSize, alphabet);
-    S.nodes = trieNodes;
+    const originalNodes = buildTrie(originalPatterns);
+    const enhancedNodes = buildTrie(enhancedPatterns);
+    const metrics = computeStorageSummary(originalNodes, enhancedNodes);
+    S.originalNodes = originalNodes;
+    S.enhancedNodes = enhancedNodes;
     S.metrics = metrics;
     S.text = text;
-    S.steps = buildTraversalSteps(trieNodes, text);
+    S.steps = buildTraversalSteps(originalNodes, enhancedNodes, text);
     S.i = 0;
 
     $('status').textContent = 'Hot/cold transition storage comparison ready. Dense rows are kept for frequently used states; sparse rows avoid full-alphabet allocation.';
@@ -404,7 +441,8 @@ function clearResultsIfTextDeleted() {
   if ($('prescription').value.trim()) return;
   clearInterval(S.timer);
   S.resultReady = false;
-  S.nodes = [];
+  S.originalNodes = [];
+  S.enhancedNodes = [];
   S.steps = [];
   S.metrics = null;
   $('osvg').innerHTML = '';
