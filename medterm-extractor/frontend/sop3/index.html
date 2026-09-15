@@ -106,7 +106,7 @@ if (sharedText) {
 }
 
 function norm(x) {
-  return (x || '').toUpperCase().replace(/[^A-Z0-9 .,/()%+:-]/g, ' ').replace(/\s+/g, ' ').trim();
+  return (x || '').toUpperCase().replace(/[^A-Z0-9 .,/()%+:#•—-]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 function canonicalizePatterns(patterns) {
@@ -143,7 +143,11 @@ function buildTrie(patterns) {
 }
 
 function getAlphabetSize(trieNodes) {
-  return new Set(trieNodes.flatMap(node => [...node.children.keys()])).size;
+  return getAlphabet(trieNodes).length;
+}
+
+function getAlphabet(trieNodes) {
+  return [...new Set(trieNodes.flatMap(node => [...node.children.keys()]))].sort((a, b) => a.localeCompare(b));
 }
 
 function buildTraversalSteps(nodes, text) {
@@ -171,7 +175,7 @@ function buildTraversalSteps(nodes, text) {
   });
 }
 
-function computeStorageSummary(trieNodes, alphabetSize) {
+function computeStorageSummary(trieNodes, alphabetSize, alphabet) {
   const totalStates = trieNodes.length;
   const hotStates = trieNodes.filter(node => node.children.size >= THETA).length;
   const coldStates = totalStates - hotStates;
@@ -185,6 +189,7 @@ function computeStorageSummary(trieNodes, alphabetSize) {
   return {
     totalStates,
     alphabetSize,
+    alphabet,
     hotStates,
     coldStates,
     baselineStorage,
@@ -314,9 +319,11 @@ function render() {
     const maxStorage = Math.max(S.metrics.baselineStorage, S.metrics.enhancedStorage, 1);
     const baselineWidth = Math.max(3, S.metrics.baselineStorage / maxStorage * 100);
     const enhancedWidth = Math.max(3, S.metrics.enhancedStorage / maxStorage * 100);
+    const alphabetLabel = S.metrics.alphabet.map(ch => ch === ' ' ? '[space]' : ch).join(' ');
     $('result').innerHTML = [
-      `Baseline full-row storage: ${S.metrics.baselineStorage} cells`,
-      `Enhanced hot-row storage: ${S.metrics.hotDenseStorage} cells`,
+      `Unique characters (${S.metrics.alphabetSize}): ${alphabetLabel}`,
+      `Baseline full-row storage: ${S.metrics.totalStates} states × ${S.metrics.alphabetSize} chars = ${S.metrics.baselineStorage} cells`,
+      `Enhanced hot-row storage: ${S.metrics.hotStates} hot states × ${S.metrics.alphabetSize} chars = ${S.metrics.hotDenseStorage} cells`,
       `Enhanced cold sparse storage: ${S.metrics.coldSparseStorage} cells`,
       `Enhanced total storage: ${S.metrics.enhancedStorage} cells`,
       `Storage saved: ${S.metrics.saved.toFixed(0)} cells (${S.metrics.savedPercent.toFixed(1)}%)`,
@@ -376,8 +383,9 @@ $('build').onclick = async () => {
     }
 
     const trieNodes = buildTrie(patterns);
-    const alphabetSize = getAlphabetSize(trieNodes);
-    const metrics = computeStorageSummary(trieNodes, alphabetSize);
+    const alphabet = getAlphabet(trieNodes);
+    const alphabetSize = alphabet.length;
+    const metrics = computeStorageSummary(trieNodes, alphabetSize, alphabet);
     S.nodes = trieNodes;
     S.metrics = metrics;
     S.text = text;

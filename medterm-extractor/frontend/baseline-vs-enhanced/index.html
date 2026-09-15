@@ -430,7 +430,10 @@
 
     function normalizeText(text) {
       let t = (text || "").toUpperCase();
-      t = t.replace(/[^A-Z0-9 .,\-/%()+:]/g, " ");
+      // Keep clinical symbols the dictionary/backend treat as real terms
+      // (e.g. "#" = total quantity to dispense, "•"/"—" = before/after meals)
+      // instead of stripping them before either engine ever sees the text.
+      t = t.replace(/[^A-Z0-9 .,\-/%()+:#•—]/g, " ");
       t = t.replace(/\s+/g, " ").trim();
       return t;
     }

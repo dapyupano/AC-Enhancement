@@ -1,27 +1,3 @@
-"""
-ENHANCED AHO-CORASICK ALGORITHM
-================================
-Implements ENHANCED_AC_BUILD(P) and ENHANCED_AC_SEARCH(T) exactly as
-specified in Chapter 3.2.1 ("Proposed Algorithm") of the thesis:
-
-    Phase 1: standard trie construction
-    Phase 2 (Objective 2): Two-Pass BFS memory layout
-    Phase 3 (Objective 3): Tiered Hot/Cold classification
-    Phase 4: failure links (standard AC BFS on compacted nodes)
-    Phase 5 (Objective 1): precompute Skip Table
-
-    Search:
-      - Text normalization (uppercase, punctuation strip, whitespace
-        normalization, common-noise expansion)
-      - Tokenization
-      - O(1) skip-table traversal (no failure-link loop at search time)
-      - Context-aware validation (Ambiguous/Negative/Positive context sets)
-      - Priority-weighted scoring (length, boundary, known-term, context bonus)
-      - Overlap resolution (keep highest-scoring non-overlapping hits)
-      - Meaning lookup for abbreviated terms (dictionary D)
-      - Phase 7: Fuzzy matching over unmatched tokens (edit distance)
-"""
-
 import re
 from collections import deque
 

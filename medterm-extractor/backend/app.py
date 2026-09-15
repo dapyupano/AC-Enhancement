@@ -230,27 +230,42 @@ def benchmark():
     orig_hits, orig_hops = bench_original.search(norm_text)
     enh_hits = bench_enhanced.search(norm_text)
 
+    NUM_TRIALS = 5
+
     def time_it(fn, label):
-        # Best-of-5: repeat to smooth out timer/OS noise and get a stable
-        # reading. Prints each trial, then a summary line for the best one.
-        trials = []
-        for trial in range(5):
+        # Pooled mean across all trials (thesis formula):
+        #
+        #   x̄_f = (1 / n_f) * Σ_{i=1..n} [1_{f_i = f} * x_i]
+        #
+        # Each trial's `diff` IS the partial sum Σ x_i for that trial,
+        # since every one of the `iterations` runs inside it belongs to
+        # the same program f (indicator = 1 for all of them). Summing
+        # the 5 trial diffs together gives the full numerator; dividing
+        # by n_f = NUM_TRIALS * iterations (the *total* individual runs
+        # across all trials, not just one trial) gives the true average
+        # time per run - not a "best of 5" minimum.
+        trial_diffs = []
+        for trial in range(NUM_TRIALS):
             t0 = _time.perf_counter()
             for _ in range(iterations):
                 fn(norm_text)
             t1 = _time.perf_counter()
             diff = t1 - t0
-            avg = diff / iterations
             print(f"{label} trial {trial}: t0={t0}, t1={t1}, diff={diff}, ")
-            trials.append(avg)
+            trial_diffs.append(diff)
 
-        best_trial = min(range(5), key=lambda i: trials[i])
-        best = trials[best_trial]
-        print(f"{label.capitalize()} best (lowest average): trial {best_trial}, {round(best * 1_000_000, 3)} us\n")
-        return best, best_trial
+        n_f = NUM_TRIALS * iterations                # e.g. 5 * 50,000 = 250,000
+        diff_sum = sum(trial_diffs)                   # Σ 1_{f_i=f} x_i, e.g. 1.4845760998
+        avg_seconds = diff_sum / n_f                  # x̄_f = (1/n_f) * diff_sum
+        avg_us = avg_seconds * 1_000_000              # convert to microseconds
+        print(
+            f"{label.capitalize()} pooled average: n_f={n_f}, "
+            f"sum_diff={diff_sum}, avg={round(avg_us, 3)} us\n"
+        )
+        return avg_seconds, trial_diffs, n_f
 
-    t_orig, orig_best_trial = time_it(lambda t: bench_original.search(t), "baseline")  # T(s)
-    t_enh, enh_best_trial = time_it(lambda t: bench_enhanced.search(t), "enhanced")     # T(o)
+    t_orig, orig_trial_diffs, orig_n_f = time_it(lambda t: bench_original.search(t), "baseline")  # T(s)
+    t_enh, enh_trial_diffs, enh_n_f = time_it(lambda t: bench_enhanced.search(t), "enhanced")     # T(o)
     speedup = (t_orig / t_enh) if t_enh > 0 else None
 
     return jsonify({
@@ -262,7 +277,8 @@ def benchmark():
             "build_time_ms": round(bench_original.build_time * 1000, 3),
             "avg_time_us": round(t_orig * 1_000_000, 3),
             "failure_hops": orig_hops,
-            "best_trial": orig_best_trial,
+            "n_f": orig_n_f,
+            "trial_diffs": [round(d, 10) for d in orig_trial_diffs],
             "hits": [{"term": p, "start": s, "end": e} for p, s, e in sorted(orig_hits, key=lambda h: h[1])],
         },
         "enhanced": {
@@ -270,7 +286,8 @@ def benchmark():
             "build_time_ms": round(bench_enhanced.build_time * 1000, 3),
             "avg_time_us": round(t_enh * 1_000_000, 3),
             "failure_hops": 0,
-            "best_trial": enh_best_trial,
+            "n_f": enh_n_f,
+            "trial_diffs": [round(d, 10) for d in enh_trial_diffs],
             "hits": [{"term": p, "start": s, "end": e} for p, s, e in sorted(enh_hits, key=lambda h: h[1])],
         },
         "speedup": round(speedup, 3) if speedup else None,
