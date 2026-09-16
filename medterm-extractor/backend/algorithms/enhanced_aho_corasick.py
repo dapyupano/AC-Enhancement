@@ -47,7 +47,7 @@ class EnhancedAhoCorasick:
     def __init__(self, patterns, dictionary_meaning=None,
                  ambiguous_terms=None, negative_context=None,
                  positive_context=None, hot_threshold=4,
-                 context_window_k=5, ambiguous_meanings=None):
+                 context_window_k=5, ambiguous_meanings=None, common_words=None):
         """
         patterns: iterable of (term, category, meaning) tuples.
         dictionary_meaning (D): term -> meaning, used ONLY in the
@@ -72,6 +72,8 @@ class EnhancedAhoCorasick:
         self.ambiguous_meanings = ambiguous_meanings or {}
         self.theta = hot_threshold
         self.context_window_k = context_window_k
+        self.common_words = common_words or set()
+        
 
         # Populated by ENHANCED_AC_BUILD:
         self.nodes = []          # flat array of nodes in BFS order (Objective 2)
@@ -269,9 +271,11 @@ class EnhancedAhoCorasick:
                 window = self._surrounding_tokens(hit, token_index, tokens, token_spans)
                 neg = self.negative_context.get(term, set())
                 pos = self.positive_context.get(term, set())
-                if window & neg:
-                    continue  # e.g. "cold compress" -> skip
-                if pos and not (window & pos):
+                neg_score = len(window & neg)
+                pos_score = len(window & pos)
+                if neg_score > pos_score:
+                    continue  # negative evidence outweighs clinical evidence -> skip
+                if pos and pos_score == 0:
                     continue  # no clinical signal nearby -> skip
                 hit["context_valid"] = True
             else:
@@ -327,12 +331,12 @@ class EnhancedAhoCorasick:
             # "IMOFLOX", but block common OCR false positives like "CUP" and "MIX"
             # which were previously being mapped to "CAP" and "MI".
             tok_upper = tok.upper()
-            if tok_upper in {"CUP", "MIX"}:
+            if tok_upper in self.common_words:
                 continue
             # Avoid rewriting normal 3-letter words like "day" into a valid
             # abbreviation such as "daw". Real OCR corruption cases like
             # "moflox" are longer and remain eligible for fuzzy correction.
-            if len(tok) == 4:
+            if len(tok) < 4:
                 continue
             if any(pos in covered_positions for pos in range(tstart, tend)):
                 continue
@@ -541,10 +545,19 @@ class EnhancedAhoCorasick:
             return self.term_meaning.get(lookup_term, "—")
 
         window = self._surrounding_tokens(hit, token_index, tokens, token_spans)
+
+        best_meaning = None
+        best_score = 0
         for meaning, context_terms in meanings.items():
-            if window & context_terms:
-                return meaning
+            score = len(window & context_terms)
+            if score > best_score:
+                best_score = score
+                best_meaning = meaning
+
+        if best_meaning is not None:
+            return best_meaning
         return self.term_meaning.get(lookup_term, "—")
+
 
 
 def load_dictionary(csv_path):

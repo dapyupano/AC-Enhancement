@@ -24,6 +24,7 @@ from algorithms.enhanced_aho_corasick import EnhancedAhoCorasick, load_dictionar
 from data.context_data import (
     AMBIGUOUS_TERMS, NEGATIVE_CONTEXT, POSITIVE_CONTEXT,
     AMBIGUOUS_MEANINGS, HOT_STATE_THRESHOLD, CONTEXT_WINDOW_K,
+    COMMON_ENGLISH_WORDS,
 )
 from data.ocr_corrections import apply_ocr_corrections, hardcoded_cleanup
 from ac_compare import (
@@ -60,6 +61,7 @@ enhanced_engine = EnhancedAhoCorasick(
     ambiguous_meanings=AMBIGUOUS_MEANINGS,
     hot_threshold=HOT_STATE_THRESHOLD,
     context_window_k=CONTEXT_WINDOW_K,
+    common_words=COMMON_ENGLISH_WORDS,
 )
 print("Both automatons ready.")
 

@@ -80,7 +80,7 @@ def _depths(root):
     return depths
 
 
-def get_run_memory_layout(detected_terms, max_print=40):
+def get_run_memory_layout(detected_terms):
     """
     detected_terms: list[str] of the pattern terms matched in this
     prescription (same list SOP 2's frontend uses to draw the node graph).
@@ -110,7 +110,7 @@ def get_run_memory_layout(detected_terms, max_print=40):
     base_addr = ctypes.addressof(buf)
     stride = ctypes.sizeof(ctypes.c_void_p)
 
-    n = min(len(b_nodes), len(e_nodes), max_print)
+    n = min(len(b_nodes), len(e_nodes))
     rows = []
     last_depth = None
     for i in range(n):
@@ -138,5 +138,5 @@ def get_run_memory_layout(detected_terms, max_print=40):
         "bfs_count": len(e_nodes),
         "stride": stride,
         "rows": rows,
-        "truncated": len(b_nodes) > max_print or len(e_nodes) > max_print,
+        "truncated": False,
     }
