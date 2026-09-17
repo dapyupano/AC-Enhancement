@@ -428,6 +428,15 @@ mark.hit-fuzzy { outline: 1.5px dashed #9333ea; outline-offset: 1px; }
 
 .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
 .pill-exact { background: #d9f2e6; color: #0c6b4d; }
+.terms-table .dropped-separator td {
+  border-top: 2px solid var(--border);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
+  text-transform: uppercase;
+}
+.terms-table .dropped-term { color: var(--muted); }
 .pill-fuzzy { background: #f4e3fb; color: #7a1e9c; }
 
 .no-terms { color: var(--muted); font-size: 13px; }

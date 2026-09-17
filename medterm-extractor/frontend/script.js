@@ -205,10 +205,22 @@ function renderHighlightedText(text, matches) {
 
 function renderTermsTable(matches, isEnhanced) {
   termsTableBody.innerHTML = "";
+  const keptMatches = matches.filter((m) => !m.dropped);
+  const droppedMatches = matches.filter((m) => m.dropped);
   noTermsMsg.hidden = matches.length > 0;
 
-  for (const m of matches) {
+  for (const [index, m] of [...keptMatches, ...droppedMatches].entries()) {
+    if (isEnhanced && index === keptMatches.length && droppedMatches.length) {
+      const separator = document.createElement("tr");
+      separator.className = "dropped-separator";
+      const separatorCell = document.createElement("td");
+      separatorCell.colSpan = 4;
+      separatorCell.textContent = "Dropped based on score / context";
+      separator.appendChild(separatorCell);
+      termsTableBody.appendChild(separator);
+    }
     const tr = document.createElement("tr");
+    if (m.dropped) tr.className = "dropped-term";
 
     const displayTerm = m.matched_dictionary_term || m.term || m.canonical_term || "";
     const termTd = document.createElement("td");
@@ -232,7 +244,7 @@ function renderTermsTable(matches, isEnhanced) {
 
       const scoreTd = document.createElement("td");
       scoreTd.className = "mono";
-      scoreTd.textContent = m.score;
+      scoreTd.textContent = m.dropped ? `${m.score} (${m.drop_reason})` : m.score;
       tr.appendChild(scoreTd);
     }
 

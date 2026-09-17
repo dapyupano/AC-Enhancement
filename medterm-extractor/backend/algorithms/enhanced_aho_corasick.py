@@ -279,7 +279,7 @@ class EnhancedAhoCorasick:
                     continue  # no clinical signal nearby -> skip
                 hit["context_valid"] = True
             else:
-                hit["context_valid"] = False
+                hit["context_valid"] = True
             validated.append(hit)
 
         # ---- Priority-weighted scoring ----
@@ -290,10 +290,6 @@ class EnhancedAhoCorasick:
             score += self._known_term_bonus(hit["term"])
             score += self._context_bonus(hit["context_valid"])
             hit["priority_score"] = min(score / 4.0, 1.0)  # normalize to [0,1]
-            if self.term_category.get(hit["term"]) == "Dosage" and (
-                "/" in hit["term"] or re.match(r"^\d+\s+", hit["term"])
-            ):
-                hit["priority_score"] = max(hit["priority_score"], 0.95)
 
         # Keep all validated hits until supplemental and fuzzy candidates have
         # been added, then resolve every overlap in one priority-ordered pass.
@@ -381,7 +377,7 @@ class EnhancedAhoCorasick:
                         "end": dosage_end,
                         "category": self.term_category.get(dosage_term, "Dosage"),
                         "meaning": self.term_meaning.get(dosage_term, "—"),
-                        "priority_score": 0.85,
+                        "context_valid": True,
                         "match_type": "exact",
                     })
                 continue
@@ -396,7 +392,7 @@ class EnhancedAhoCorasick:
                 "end": end,
                 "category": self.term_category.get(unit, "Dosage"),
                 "meaning": self.term_meaning.get(unit, "—"),
-                "priority_score": 0.72,
+                "context_valid": True,
                 "match_type": "exact",
             })
 
@@ -422,10 +418,19 @@ class EnhancedAhoCorasick:
                     {"term": token, "start": tstart, "end": tend},
                     token, token_index, tokens, token_spans,
                 ),
-                "priority_score": 0.72,
+                "context_valid": True,
                 "match_type": "exact",
             })
             seen_exact.add((token, tstart, tend))
+
+        for hit in output:
+            if hit.get("match_type") == "exact" and "priority_score" not in hit:
+                score = 0.0
+                score += self._length_bonus(hit["term"])
+                score += self._boundary_bonus(hit, T)
+                score += self._known_term_bonus(hit["term"])
+                score += self._context_bonus(hit.get("context_valid", True))
+                hit["priority_score"] = min(score / 4.0, 1.0)
 
         # ---- Final overlap resolution across all candidate sources ----
         output.sort(key=lambda h: (-h["priority_score"], -len(h["term"])))
@@ -539,6 +544,27 @@ class EnhancedAhoCorasick:
     def _context_bonus(self, context_valid):
         return 1.0 if context_valid else 0.0
 
+    def score_external_hit(self, hit, text):
+        T = text.upper()
+        tokens, token_spans = self._tokenize(T)
+        token_index = self._build_char_to_token_index(T, token_spans)
+        term = hit["term"].upper()
+        context_valid = True
+        if term in self.ambiguous_terms:
+            window = self._surrounding_tokens(hit, token_index, tokens, token_spans)
+            neg = self.negative_context.get(term, set())
+            pos = self.positive_context.get(term, set())
+            neg_score = len(window & neg)
+            pos_score = len(window & pos)
+            context_valid = not (neg_score > pos_score or (pos and pos_score == 0))
+
+        score = 0.0
+        score += self._length_bonus(term)
+        score += self._boundary_bonus({**hit, "term": term}, T)
+        score += self._known_term_bonus(term)
+        score += self._context_bonus(context_valid)
+        return min(score / 4.0, 1.0), context_valid
+
     def _meaning_for_hit(self, hit, lookup_term, token_index, tokens, token_spans):
         meanings = self.ambiguous_meanings.get(lookup_term)
         if not meanings:
@@ -546,16 +572,9 @@ class EnhancedAhoCorasick:
 
         window = self._surrounding_tokens(hit, token_index, tokens, token_spans)
 
-        best_meaning = None
-        best_score = 0
         for meaning, context_terms in meanings.items():
-            score = len(window & context_terms)
-            if score > best_score:
-                best_score = score
-                best_meaning = meaning
-
-        if best_meaning is not None:
-            return best_meaning
+            if window & context_terms:
+                return meaning
         return self.term_meaning.get(lookup_term, "—")
 
 

@@ -125,6 +125,7 @@ def analyze():
 
     if mode == "enhanced":
         hits = enhanced_engine.search(text)
+        original_hits = original_engine.search(text)
         raw_matches = [{
             "term": h.get("matched", h["term"]),
             "category": h.get("category", ""),
@@ -144,6 +145,39 @@ def analyze():
                 continue
             seen_matches.add(key)
             matches.append(match)
+
+        baseline_terms = {}
+        for hit in original_hits:
+            term = hit["term"].upper()
+            if term in baseline_terms:
+                continue
+            score, context_valid = enhanced_engine.score_external_hit(hit, text)
+            baseline_terms[term] = {
+                "term": hit["term"],
+                "score": round(score, 2),
+                "context_valid": context_valid,
+            }
+        matches = [match for match in matches if not (
+            match["matched_dictionary_term"].upper() in AMBIGUOUS_TERMS
+            or match["canonical_term"].upper() in AMBIGUOUS_TERMS
+        )]
+        for match in matches:
+            baseline_terms.pop(match["matched_dictionary_term"].upper(), None)
+            baseline_terms.pop(match["canonical_term"].upper(), None)
+        dropped_matches = [{
+            "term": item["term"],
+            "category": enhanced_engine.term_category.get(item["term"].upper(), ""),
+            "meaning": "—",
+            "start": 0,
+            "end": 0,
+            "confidence": "exact",
+            "score": item["score"],
+            "matched_dictionary_term": item["term"],
+            "canonical_term": item["term"],
+            "dropped": True,
+            "drop_reason": "ambiguous term" if item["term"].upper() in AMBIGUOUS_TERMS else "not retained by enhanced extraction",
+        } for item in baseline_terms.values()]
+        matches.extend(dropped_matches)
 
         abbreviations = [
             {"term": m["matched_dictionary_term"], "meaning": m["meaning"]}
@@ -176,6 +210,7 @@ def analyze():
         return jsonify({
             "mode": "enhanced",
             "matches": matches,
+            "dropped_matches": dropped_matches,
             "abbreviations": dedup_abbrev,
             "memory_layout": memory_layout,
         })

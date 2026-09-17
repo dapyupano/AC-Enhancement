@@ -113,3 +113,22 @@ def test_bullet_symbol_remains_in_the_csv_dictionary():
 
     assert any(term == "•" and category == "Symbol" for term, category, _ in patterns)
     assert any(term == "—" and category == "Symbol" for term, category, _ in patterns)
+
+
+def test_priority_score_uses_all_four_requested_components():
+    engine = build_engine()
+
+    hits = engine.search("MONTELUKAST 10MG/TAB #14 SIG 1 TAB AT BEDTIME")
+    scores = {hit["term"]: hit["priority_score"] for hit in hits}
+
+    expected_scores = {
+        "MONTELUKAST": 1.0,
+        "AT BEDTIME": (10 / 11 + 3) / 4.0,
+        "10MG/TAB": (8 / 11 + 3) / 4.0,
+        "1 TAB": (5 / 11 + 3) / 4.0,
+        "SIG": (3 / 11 + 3) / 4.0,
+        "#14": (3 / 11 + 3) / 4.0,
+    }
+    assert set(scores) == set(expected_scores)
+    assert all(abs(scores[term] - expected) < 1e-12
+               for term, expected in expected_scores.items())
