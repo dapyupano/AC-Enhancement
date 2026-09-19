@@ -154,6 +154,8 @@ def analyze():
             score, context_valid = enhanced_engine.score_external_hit(hit, text)
             baseline_terms[term] = {
                 "term": hit["term"],
+                "start": hit["start"],
+                "end": hit["end"],
                 "score": round(score, 2),
                 "context_valid": context_valid,
             }
@@ -164,18 +166,50 @@ def analyze():
         for match in matches:
             baseline_terms.pop(match["matched_dictionary_term"].upper(), None)
             baseline_terms.pop(match["canonical_term"].upper(), None)
+
+        kept_spans = [
+            (match["start"], match["end"])
+            for match in matches
+            if match["start"] < match["end"]
+        ]
+
+        def dropped_reason(item):
+            span = (item["start"], item["end"])
+            term = item["term"].upper()
+            category = enhanced_engine.term_category.get(term, "")
+            source_text = text.upper()
+            left_ok = item["start"] == 0 or not source_text[item["start"] - 1].isalnum()
+            right_ok = item["end"] >= len(source_text) or not source_text[item["end"]].isalnum()
+            overlaps_kept = any(
+                span[0] < kept_end and span[1] > kept_start
+                for kept_start, kept_end in kept_spans
+                if (kept_start, kept_end) != span
+            )
+
+            dosage_components = {"TAB", "TABS", "CAP", "CAPS", "VIAL", "AMPULE"}
+            if overlaps_kept and (category in {"Dosage", "Symbol"} or term in dosage_components):
+                return "overlapping"
+            if not (left_ok and right_ok):
+                return "false positive"
+            if overlaps_kept:
+                return "overlapping"
+
+            if term in AMBIGUOUS_TERMS:
+                return "ambiguous term"
+            return "not retained by enhanced extraction"
+
         dropped_matches = [{
             "term": item["term"],
             "category": enhanced_engine.term_category.get(item["term"].upper(), ""),
             "meaning": "—",
-            "start": 0,
-            "end": 0,
+            "start": item["start"],
+            "end": item["end"],
             "confidence": "exact",
             "score": item["score"],
             "matched_dictionary_term": item["term"],
             "canonical_term": item["term"],
             "dropped": True,
-            "drop_reason": "ambiguous term" if item["term"].upper() in AMBIGUOUS_TERMS else "not retained by enhanced extraction",
+            "drop_reason": dropped_reason(item),
         } for item in baseline_terms.values()]
         matches.extend(dropped_matches)
 
