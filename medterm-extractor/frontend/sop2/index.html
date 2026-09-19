@@ -63,6 +63,8 @@
         <a class="side-item" href="../sop1/index.html"><span class="side-dot"></span><span class="side-label">SOP 1</span></a>
         <a class="side-item active" href="../sop2/index.html"><span class="side-dot"></span><span class="side-label">SOP 2</span></a>
         <a class="side-item" href="../sop3/index.html"><span class="side-dot"></span><span class="side-label">SOP 3</span></a>
+      </div>
+      <div class="side-group">
         <a class="side-item" href="../baseline-vs-enhanced/index.html">
             <span class="side-dot"></span>
             <span class="side-label">Baseline vs Enhanced (Build)</span>
@@ -207,8 +209,8 @@ function computeBfsOrder(trieNodes) {
   const originalScore = computeLocalityScore(original, LOCALITY_WINDOW);
   const enhancedScore = computeLocalityScore(enhanced, LOCALITY_WINDOW);
   const localityGain = originalScore > 0
-    ? ((enhancedScore - originalScore) / originalScore) * 100
-    : (enhancedScore > 0 ? 100 : 0);
+    ? ((originalScore - enhancedScore) / originalScore) * 100
+    : 0;
 
   return { original, enhanced, originalScore, enhancedScore, localityGain };
 }
@@ -413,6 +415,9 @@ function render() {
       `Original nodes: ${S.memoryLayout.original_count} (scattered addresses)`,
       `Two-pass BFS nodes: ${S.memoryLayout.bfs_count} (contiguous addresses)`,
       `BFS slot stride: ${S.memoryLayout.stride} bytes`,
+      `Original locality score: ${S.metrics.originalScore}`,
+      `Two-pass BFS locality score: ${S.metrics.enhancedScore}`,
+      `Locality gain: ${S.metrics.localityGain.toFixed(2)}%`,
       speedText
     ].join('\n');
   }

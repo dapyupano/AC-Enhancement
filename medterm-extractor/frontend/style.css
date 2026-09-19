@@ -6,6 +6,7 @@
   --muted: #6b7280;
   --blue: #b5534f;
   --blue-dark: #8f3f3b;
+  --page-active: #b5534f;
   --header-h: 72px;
   --teal: #E37434;
   --teal-dark: #EF6905;
@@ -174,6 +175,13 @@ body {
 
 .side-item.active .side-label { color: var(--blue); }
 .side-item[data-mode="enhanced"].active .side-label { color: var(--teal); }
+
+.side-item.active:not(.mode-item) .side-dot {
+  background: var(--page-active);
+  border-color: var(--page-active);
+}
+
+.side-item.active:not(.mode-item) .side-label { color: var(--page-active); }
 
 .side-label { margin-left: -14px; }
 
