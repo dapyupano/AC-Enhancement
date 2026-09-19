@@ -696,7 +696,10 @@
       if (!response.ok) throw new Error(data.error || "Pattern extraction failed.");
 
       const found = canonicalizePatterns(
-        (data.matches || []).map(match => match.matched_dictionary_term || match.term).filter(Boolean)
+        (data.matches || [])
+          .filter(match => mode !== "enhanced" || !match.dropped)
+          .map(match => match.matched_dictionary_term || match.term)
+          .filter(Boolean)
       );
       return found;
     }

@@ -125,7 +125,12 @@ async function getPatterns(text, mode) {
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'Pattern discovery failed.');
-  return canonicalizePatterns((data.matches || []).map(m => m.matched_dictionary_term || m.term).filter(Boolean));
+  return canonicalizePatterns(
+    (data.matches || [])
+      .filter(m => mode !== 'enhanced' || !m.dropped)
+      .map(m => m.matched_dictionary_term || m.term)
+      .filter(Boolean)
+  );
 }
 
 function buildTrie(patterns) {
