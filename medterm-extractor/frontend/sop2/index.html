@@ -224,7 +224,7 @@ function computeLocalityScore(layout, windowSize) {
   let score = 0;
   for (const node of layout) {
     for (const [, childId] of node.children) {
-      score += Math.abs(childId - node.id) <= windowSize ? 1 : 0;
+      score += Math.abs(childId - node.id) > windowSize ? 1 : 0;
     }
   }
   return score;
