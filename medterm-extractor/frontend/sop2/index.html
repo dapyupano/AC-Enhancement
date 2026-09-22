@@ -213,11 +213,12 @@ function computeBfsOrder(trieNodes) {
 
   const originalScore = computeLocalityScore(original, LOCALITY_WINDOW);
   const enhancedScore = computeLocalityScore(enhanced, LOCALITY_WINDOW);
-  const localityGain = originalScore > 0
-    ? ((originalScore - enhancedScore) / originalScore) * 100
+  const totalTransitions = enhanced.reduce((total, node) => total + node.children.length, 0);
+  const memoryAccessEfficiency = totalTransitions > 0
+    ? Math.max(0, Math.min(100, (enhancedScore / totalTransitions) * 100))
     : 0;
 
-  return { original, enhanced, originalScore, enhancedScore, localityGain };
+  return { original, enhanced, originalScore, enhancedScore, memoryAccessEfficiency };
 }
 
 function computeLocalityScore(layout, windowSize) {
@@ -421,8 +422,8 @@ function render() {
       `Two-pass BFS nodes: ${S.memoryLayout.bfs_count} (contiguous addresses)`,
       `BFS slot stride: ${S.memoryLayout.stride} bytes`,
       `Original locality score: ${S.metrics.originalScore}`,
-      `Two-pass BFS locality score: ${S.metrics.enhancedScore}`,
-      `Locality gain: ${S.metrics.localityGain.toFixed(2)}%`,
+      `Two-Pass BFS locality score: ${S.metrics.enhancedScore}`,
+      `Memory access efficiency: ${S.metrics.memoryAccessEfficiency.toFixed(2)}%`,
       speedText
     ].join('\n');
   }
@@ -465,7 +466,7 @@ $('build').onclick = async () => {
     S.metrics = {
       originalScore: locality.originalScore,
       enhancedScore: locality.enhancedScore,
-      localityGain: locality.localityGain
+      memoryAccessEfficiency: locality.memoryAccessEfficiency
     };
     S.steps = [];
     S.i = 0;
