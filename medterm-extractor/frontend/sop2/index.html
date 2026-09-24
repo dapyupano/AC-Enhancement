@@ -41,6 +41,10 @@
   .layout-table .bfs-col { background: #fbfdfc; }
   .layout-table thead tr:first-child th.bfs-col { background: #e7f1ed; }
   .layout-table .depth-marker { font-weight: 700; color: var(--teal); }
+  .fig-panel { min-height: 0; grid-template-rows: auto auto; }
+  .fig-body { padding: .8rem 1rem 1rem; display: grid; gap: .7rem; background: #fbfdfc; }
+  .fig-body svg { width: 100%; height: auto; min-height: 0; background: #fff; border: 1px solid var(--line); border-radius: 10px; }
+  .fig-stats { font: .82rem "Times New Roman", monospace; white-space: pre-wrap; line-height: 1.5; background: rgba(255,255,255,.86); border: 1px solid var(--line); border-radius: 10px; padding: .6rem .75rem; }
 </style>
 </head>
 <body>
@@ -83,7 +87,9 @@
 <div class="buttons">
   <div class="buttons-left"><button id="build" class="primary">Run</button></div>
 </div></section>
-        <div class="progress"><span id="bar"></span></div><div class="cmp-layout"><section class="panel"><div class="layout-head"><span>Memory layout for this run</span><small id="layoutMeta">Waiting...</small></div><div class="layout-table-wrap"><table class="layout-table"><thead><tr><th rowspan="2">Depth</th><th colspan="2" class="original-col">Original</th><th colspan="3" class="bfs-col">Enhanced two-pass BFS</th></tr><tr><th class="original-col">Address</th><th class="original-col">Node</th><th class="bfs-col">Address</th><th class="bfs-col">Node</th><th class="bfs-col">Rank</th></tr></thead><tbody id="layoutRows"><tr><td colspan="6">Build the memory layout to see the node addresses.</td></tr></tbody></table></div></section><aside class="side"><section class="status" id="status">Waiting for prescription input.</section><section class="bench-wrap"><div class="bench-title">Comparative Result</div><div class="bench-box" id="result">Build the memory layout to see the comparison.</div></section></aside></div></div>
+        <div class="progress"><span id="bar"></span></div><div class="cmp-layout"><section class="panel"><div class="layout-head"><span>Memory layout for this run</span><small id="layoutMeta">Waiting...</small></div><div class="layout-table-wrap"><table class="layout-table"><thead><tr><th rowspan="2">Depth</th><th colspan="2" class="original-col">Original</th><th colspan="3" class="bfs-col">Enhanced two-pass BFS</th></tr><tr><th class="original-col">Address</th><th class="original-col">Node</th><th class="bfs-col">Address</th><th class="bfs-col">Node</th><th class="bfs-col">Rank</th></tr></thead><tbody id="layoutRows"><tr><td colspan="6">Build the memory layout to see the node addresses.</td></tr></tbody></table></div></section><aside class="side"><section class="status" id="status">Waiting for prescription input.</section><section class="bench-wrap"><div class="bench-title">Comparative Result</div><div class="bench-box" id="result">Build the memory layout to see the comparison.</div></section></aside></div>
+<section class="panel fig-panel"><div class="layout-head"><span>Memory access pattern during search</span><small id="accessMeta">Waiting...</small></div><div class="fig-body"><svg id="accessFigure" viewBox="0 0 900 200" role="img" aria-label="Scattered versus contiguous memory access during search"></svg><div class="fig-stats" id="accessStats">Run the simulation to compare cache-line changes for both layouts.</div></div></section>
+</div>
 <script>
 const $ = id => document.getElementById(id);
 const INITIAL_STATUS = 'SOP 2 compares scattered insertion-order nodes with a contiguous two-pass BFS layout to improve memory locality.';
@@ -399,6 +405,248 @@ function renderMemoryLayout(layout) {
   }
 }
 
+/* ================= Memory access pattern figure (Panel B) ================= */
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const CACHE_LINE_BYTES = 64;
+const PAGE_BYTES = 4096;
+
+function svgEl(tag, attrs = {}, text) {
+  const el = document.createElementNS(SVG_NS, tag);
+  for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, value);
+  if (text !== undefined) el.textContent = text;
+  return el;
+}
+
+function niceStep(range, target = 6) {
+  const raw = Math.max(range, 1e-9) / target;
+  const pow = Math.pow(10, Math.floor(Math.log10(raw)));
+  const frac = raw / pow;
+  const mult = frac < 1.5 ? 1 : frac < 3 ? 2 : frac < 7 ? 5 : 10;
+  return mult * pow;
+}
+
+function formatKb(kb) {
+  return kb >= 100 ? Math.round(kb).toString() : kb >= 10 ? kb.toFixed(1) : kb.toFixed(2);
+}
+
+/* Replays the search over the current text and records every node touched.
+   Real addresses come from the memory layout table (S.memoryLayout.rows):
+   row i = the node with BFS rank i, so BFS order is rebuilt here with the same
+   sorted-key rule the backend uses to line the two up. */
+function buildAccessTrace(layout, rows, text) {
+  const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+  const bfsIds = [];
+  const incoming = new Map([[0, 'root']]);
+  const seen = new Set([0]);
+  const queue = [0];
+  while (queue.length) {
+    const id = queue.shift();
+    bfsIds.push(id);
+    for (const [ch, childId] of [...layout[id].children].sort(([a], [b]) => cmp(a, b))) {
+      if (!seen.has(childId)) {
+        seen.add(childId);
+        incoming.set(childId, ch);
+        queue.push(childId);
+      }
+    }
+  }
+  if (bfsIds.length !== rows.length) return null;
+  for (let i = 1; i < rows.length; i += 1) {
+    if (String(rows[i].original.label).toUpperCase() !== incoming.get(bfsIds[i])) return null;
+  }
+
+  const origAddr = new Array(layout.length);
+  const bfsAddr = new Array(layout.length);
+  bfsIds.forEach((id, i) => {
+    origAddr[id] = parseInt(rows[i].original.address, 16);
+    bfsAddr[id] = parseInt(rows[i].bfs.address, 16);
+  });
+  const origBase = Math.min(...origAddr);
+  const bfsBase = Math.min(...bfsAddr);
+
+  // Failure links (standard Aho-Corasick BFS construction)
+  const gotoMaps = layout.map(node => new Map(node.children));
+  const fail = new Array(layout.length).fill(0);
+  const fq = [...gotoMaps[0].values()];
+  while (fq.length) {
+    const s = fq.shift();
+    for (const [ch, c] of gotoMaps[s]) {
+      let f = fail[s];
+      while (f && !gotoMaps[f].has(ch)) f = fail[f];
+      const t = gotoMaps[f].get(ch);
+      fail[c] = t !== undefined && t !== c ? t : 0;
+      fq.push(c);
+    }
+  }
+
+  // Replay the search, recording every node access (failure hops flagged)
+  const accesses = [];
+  let state = 0;
+  [...text].forEach((ch, pos) => {
+    while (state && !gotoMaps[state].has(ch)) {
+      state = fail[state];
+      accesses.push({ pos, node: state, hop: true, ch });
+    }
+    state = gotoMaps[state].get(ch) ?? 0;
+    accesses.push({ pos, node: state, hop: false, ch });
+  });
+
+  accesses.forEach(a => {
+    a.origBytes = origAddr[a.node] - origBase;
+    a.bfsBytes = bfsAddr[a.node] - bfsBase;
+    a.origAddress = origAddr[a.node];
+    a.bfsAddress = bfsAddr[a.node];
+  });
+
+  const summarize = key => {
+    let lineChanges = 0, pageChanges = 0, maxJump = 0, maxIdx = -1;
+    for (let k = 1; k < accesses.length; k += 1) {
+      const prev = accesses[k - 1][key === 'orig' ? 'origAddress' : 'bfsAddress'];
+      const cur = accesses[k][key === 'orig' ? 'origAddress' : 'bfsAddress'];
+      if (Math.floor(prev / CACHE_LINE_BYTES) !== Math.floor(cur / CACHE_LINE_BYTES)) lineChanges += 1;
+      if (Math.floor(prev / PAGE_BYTES) !== Math.floor(cur / PAGE_BYTES)) pageChanges += 1;
+      const jump = Math.abs(cur - prev);
+      if (jump > maxJump) { maxJump = jump; maxIdx = k; }
+    }
+    return { lineChanges, pageChanges, maxJump, maxIdx };
+  };
+
+  return {
+    accesses,
+    hops: accesses.filter(a => a.hop).length,
+    transitions: Math.max(accesses.length - 1, 0),
+    original: summarize('orig'),
+    bfs: summarize('bfs')
+  };
+}
+
+function clearAccessFigure(message = 'Run the simulation to see the memory access pattern.') {
+  const svg = $('accessFigure');
+  if (!svg) return;
+  svg.innerHTML = '';
+  svg.setAttribute('viewBox', '0 0 900 200');
+  svg.appendChild(svgEl('text', { x: 450, y: 100, 'text-anchor': 'middle', 'font-size': 14, fill: '#60736e', 'font-family': 'Times New Roman' }, message));
+  $('accessStats').textContent = 'Run the simulation to compare cache-line changes for both layouts.';
+  $('accessMeta').textContent = 'Waiting...';
+}
+
+function renderAccessFigure() {
+  const svg = $('accessFigure');
+  const rows = S.memoryLayout && S.memoryLayout.rows;
+  if (!svg || !rows || !S.text) { clearAccessFigure(); return; }
+  // Rebuild the trie from the exact pattern list the backend used for the memory table,
+  // so every node in the figure lines up 1:1 with a row of that table.
+  const layoutPatterns = [...new Set((S.memoryLayout.patterns || []).map(p => String(p).toUpperCase()))];
+  const trace = buildAccessTrace(buildTrie(layoutPatterns), rows, S.text);
+  if (!trace) { clearAccessFigure('The node order could not be matched to the memory table for this run.'); return; }
+
+  const { accesses } = trace;
+  const W = 900, H = 540, M = { l: 84, r: 34, t: 24, b: 62 };
+  const pw = W - M.l - M.r, ph = H - M.t - M.b;
+  const n = [...S.text].length;
+  const yMaxData = Math.max(...accesses.map(a => a.origBytes / 1024), 1);
+  const yPad = yMaxData * 0.05;
+  const yMin = -yPad, yMax = yMaxData * 1.22 + yPad; // extra headroom keeps the legend clear of the data
+  const xPad = Math.max(1, n * 0.05);
+  const xMin = -xPad, xMax = n - 1 + xPad;
+  const sx = v => M.l + ((v - xMin) / (xMax - xMin)) * pw;
+  const sy = v => M.t + ph - ((v - yMin) / (yMax - yMin)) * ph;
+
+  svg.innerHTML = '';
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const font = 'DejaVu Sans, Arial, sans-serif';
+
+  const defs = svgEl('defs');
+  const marker = svgEl('marker', { id: 'accessArrow', viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' });
+  marker.appendChild(svgEl('path', { d: 'M 0 0 L 10 5 L 0 10 z', fill: '#a52a2a' }));
+  defs.appendChild(marker);
+  svg.appendChild(defs);
+  svg.appendChild(svgEl('rect', { x: 0, y: 0, width: W, height: H, fill: '#ffffff' }));
+
+  // Grid + ticks
+  const yStep = niceStep(yMax - yMin, 7);
+  for (let v = Math.ceil(yMin / yStep) * yStep; v <= yMax; v += yStep) {
+    const y = sy(v);
+    svg.appendChild(svgEl('line', { x1: M.l, x2: M.l + pw, y1: y, y2: y, stroke: '#cfcfcf', 'stroke-dasharray': '4 3', 'stroke-width': 0.8 }));
+    svg.appendChild(svgEl('line', { x1: M.l - 5, x2: M.l, y1: y, y2: y, stroke: '#000' }));
+    svg.appendChild(svgEl('text', { x: M.l - 9, y: y + 4, 'text-anchor': 'end', 'font-size': 12, 'font-family': font }, Math.abs(v) < 1e-9 ? '0' : (yStep < 1 ? v.toFixed(1) : String(Math.round(v)))));
+  }
+  const xStep = Math.max(1, niceStep(xMax - xMin, 8));
+  for (let v = Math.ceil(xMin / xStep) * xStep; v <= xMax; v += xStep) {
+    const x = sx(v);
+    svg.appendChild(svgEl('line', { x1: x, x2: x, y1: M.t, y2: M.t + ph, stroke: '#cfcfcf', 'stroke-dasharray': '4 3', 'stroke-width': 0.8 }));
+    svg.appendChild(svgEl('line', { x1: x, x2: x, y1: M.t + ph, y2: M.t + ph + 5, stroke: '#000' }));
+    svg.appendChild(svgEl('text', { x, y: M.t + ph + 20, 'text-anchor': 'middle', 'font-size': 12, 'font-family': font }, String(Math.round(v))));
+  }
+  svg.appendChild(svgEl('rect', { x: M.l, y: M.t, width: pw, height: ph, fill: 'none', stroke: '#000', 'stroke-width': 1 }));
+
+  // Axis labels
+  svg.appendChild(svgEl('text', { x: M.l + pw / 2, y: H - 14, 'text-anchor': 'middle', 'font-size': 13, 'font-family': font }, 'Character position in text'));
+  svg.appendChild(svgEl('text', { transform: `translate(20 ${M.t + ph / 2}) rotate(-90)`, 'text-anchor': 'middle', 'font-size': 13, 'font-family': font }, 'Memory address accessed (KB)'));
+
+  // Connecting line for the scattered accesses
+  const clip = svgEl('clipPath', { id: 'accessClip' });
+  clip.appendChild(svgEl('rect', { x: M.l, y: M.t, width: pw, height: ph }));
+  defs.appendChild(clip);
+  const plot = svgEl('g', { 'clip-path': 'url(#accessClip)' });
+  svg.appendChild(plot);
+  plot.appendChild(svgEl('polyline', {
+    points: accesses.map(a => `${sx(a.pos).toFixed(1)},${sy(a.origBytes / 1024).toFixed(1)}`).join(' '),
+    fill: 'none', stroke: '#f4b6b0', 'stroke-width': 0.9, opacity: 0.8
+  }));
+
+  const r = n > 150 ? 2.6 : n > 80 ? 3.6 : 4.6;
+  const tip = a => `Char ${a.pos} '${a.ch === ' ' ? '\u2423' : a.ch}'${a.hop ? ' (failure hop)' : ''}\nScattered: ${a.origAddress.toString(16).padStart(12, '0')} (+${formatKb(a.origBytes / 1024)} KB)\nContiguous: ${a.bfsAddress.toString(16).padStart(12, '0')} (+${formatKb(a.bfsBytes / 1024)} KB)`;
+
+  for (const a of accesses.filter(a => !a.hop)) {
+    const c = svgEl('circle', { cx: sx(a.pos), cy: sy(a.origBytes / 1024), r, fill: '#f08a84', 'fill-opacity': 0.7 });
+    c.appendChild(svgEl('title', {}, tip(a)));
+    plot.appendChild(c);
+  }
+  for (const a of accesses) {
+    const s = r * 1.55;
+    const sq = svgEl('rect', { x: sx(a.pos) - s / 2, y: sy(a.bfsBytes / 1024) - s / 2, width: s, height: s, fill: '#6fb8f0', 'fill-opacity': 0.85 });
+    sq.appendChild(svgEl('title', {}, tip(a)));
+    plot.appendChild(sq);
+  }
+  for (const a of accesses.filter(a => a.hop)) {
+    const c = svgEl('circle', { cx: sx(a.pos), cy: sy(a.origBytes / 1024), r, fill: '#cc4a4a', 'fill-opacity': 0.95 });
+    c.appendChild(svgEl('title', {}, tip(a)));
+    plot.appendChild(c);
+  }
+
+  // Max jump annotation
+  const { maxIdx, maxJump } = trace.original;
+  if (maxIdx > 0 && maxJump > 0) {
+    const target = accesses[maxIdx];
+    const tx = sx(target.pos), ty = sy(target.origBytes / 1024);
+    const labelX = Math.min(Math.max(tx - 46, M.l + 44), M.l + pw - 44);
+    const labelY = Math.max(ty - 30, M.t + 26);
+    svg.appendChild(svgEl('line', { x1: labelX + (tx > labelX ? 18 : -18), y1: labelY + 6, x2: tx, y2: ty - r - 1, stroke: '#a52a2a', 'stroke-width': 1.1, 'marker-end': 'url(#accessArrow)' }));
+    svg.appendChild(svgEl('text', { x: labelX, y: labelY - 8, 'text-anchor': 'middle', 'font-size': 10.5, 'font-family': font, fill: '#a52a2a' }, 'Max jump:'));
+    svg.appendChild(svgEl('text', { x: labelX, y: labelY + 4, 'text-anchor': 'middle', 'font-size': 10.5, 'font-family': font, fill: '#a52a2a' }, `~${formatKb(maxJump / 1024)} KB`));
+  }
+
+  // Legend
+  const lx = M.l + 8, ly = M.t + 8, lw = 232, lh = 66;
+  svg.appendChild(svgEl('rect', { x: lx, y: ly, width: lw, height: lh, rx: 3, fill: '#fff', 'fill-opacity': 0.9, stroke: '#cfcfcf' }));
+  svg.appendChild(svgEl('circle', { cx: lx + 16, cy: ly + 15, r: 4.6, fill: '#f08a84', 'fill-opacity': 0.7 }));
+  svg.appendChild(svgEl('text', { x: lx + 32, y: ly + 19, 'font-size': 11, 'font-family': font }, 'Scattered address accessed'));
+  svg.appendChild(svgEl('rect', { x: lx + 12, y: ly + 28, width: 8, height: 8, fill: '#6fb8f0', 'fill-opacity': 0.85 }));
+  svg.appendChild(svgEl('text', { x: lx + 32, y: ly + 37, 'font-size': 11, 'font-family': font }, 'Contiguous address (reference)'));
+  svg.appendChild(svgEl('circle', { cx: lx + 16, cy: ly + 52, r: 4.6, fill: '#cc4a4a' }));
+  svg.appendChild(svgEl('text', { x: lx + 32, y: ly + 56, 'font-size': 11, 'font-family': font }, 'Failure hop access'));
+
+  // Summary under the figure
+  const o = trace.original, b = trace.bfs, t = trace.transitions;
+  const pct = v => (t ? ((v / t) * 100).toFixed(0) : '0') + '%';
+  $('accessMeta').textContent = `${n} characters | ${accesses.length} node accesses | ${trace.hops} failure hops`;
+  $('accessStats').textContent = [
+    `Original (scattered):   ${o.lineChanges} of ${t} accesses land on a new 64 B cache line (${pct(o.lineChanges)}), ${o.pageChanges} on a new 4 KB page, largest jump ${formatKb(o.maxJump / 1024)} KB`,
+    `Two-pass BFS (contiguous): ${b.lineChanges} of ${t} accesses land on a new 64 B cache line (${pct(b.lineChanges)}), ${b.pageChanges} on a new 4 KB page, largest jump ${formatKb(b.maxJump / 1024)} KB`
+  ].join('\n');
+}
+
 function render() {
   if (!S.memoryLayout) return;
   renderMemoryLayout(S.memoryLayout);
@@ -424,9 +672,10 @@ function render() {
       `Original locality score: ${S.metrics.originalScore}`,
       `Two-Pass BFS locality score: ${S.metrics.enhancedScore}`,
       `Memory access efficiency: ${S.metrics.memoryAccessEfficiency.toFixed(2)}%`,
-      speedText
+            speedText
     ].join('\n');
   }
+  renderAccessFigure();
 }
 
 $('build').onclick = async () => {
@@ -454,6 +703,7 @@ $('build').onclick = async () => {
       $('layoutRows').innerHTML = '<tr><td colspan="6">No patterns were detected for this text.</td></tr>';
       $('layoutMeta').textContent = 'No patterns detected';
       $('result').textContent = 'No patterns were detected for this text.';
+        clearAccessFigure('No patterns were detected for this text.');
       return;
     }
     S.patterns = patterns;
@@ -491,6 +741,7 @@ function clearResultsIfTextDeleted() {
   $('bar').style.width = '0%';
   $('result').textContent = 'Build the simulation to see node-order and locality results.';
   $('status').textContent = INITIAL_STATUS;
+    clearAccessFigure();
 }
 
 ['prescription'].forEach(id => $(id).addEventListener('input', clearResultsIfTextDeleted));
@@ -520,6 +771,8 @@ $('ocr').onclick = async () => {
     $('ocr').disabled = false;
   }
 };
+
+  clearAccessFigure();
 
 </script>
 </div>
