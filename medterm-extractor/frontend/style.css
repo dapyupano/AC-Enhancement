@@ -384,6 +384,17 @@ body[data-mode="enhanced"] .text-input:focus { outline-color: var(--teal); }
 }
 body[data-mode="enhanced"] .badge { background: var(--teal); }
 
+.results-stats {
+  margin-bottom: 14px;
+}
+.stat-line {
+  font-family: var(--mono);
+  font-size: 13.5px;
+  color: var(--ink, #1a1a1a);
+  margin: 2px 0;
+}
+.stat-line strong { font-weight: 700; }
+
 .highlighted-text {
   background: #f8f9fc;
   border: 1px solid var(--border);

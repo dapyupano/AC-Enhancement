@@ -28,6 +28,13 @@
   .buttons button.icon-btn { background: var(--orange); color: #fff; border-color: transparent; width: 2.4rem; height: 2.4rem; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 1rem; line-height: 1; }
   .buttons button.icon-btn:hover { background: var(--teal); }
 </style>
+<style>
+  .cr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; white-space: normal; }
+  .cr-box { border: 1px solid var(--line); border-radius: 8px; padding: .55rem .75rem; background: #fffdf8; line-height: 1.5; }
+  .cr-box.wide { grid-column: 1 / -1; }
+  .cr-title { text-align: center; font-weight: 700; margin-bottom: .35rem; color: var(--teal); }
+  @media (max-width: 760px) { .cr-grid { grid-template-columns: 1fr; } }
+</style>
 </head>
 <body>
 <header class="topbar">
@@ -82,7 +89,7 @@ const $ = id => document.getElementById(id);
 document.querySelector('.sub').textContent = 'Upload or type a prescription, review the extracted search text and all matched patterns, then watch both automata traverse it.';
 const speedControl = $('speed');
 const INITIAL_STATUS = 'SOP 3 compares full-alphabet transition rows with hot dense states and cold sparse states to reduce storage.';
-const FULL_ALPHABET = Array.from('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,-/%()+:');
+const FULL_ALPHABET = Array.from('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,-/%()+:#•—');
 function addFigureLegends() {
   const legends = [
     ['osvg', '<span style="color:#929292">●</span> Original insertion-order state<br><span style="color:#e9c46a">◎</span> End state<br><span style="color:#2a9d8f">●</span> Current state being visited'],
@@ -164,6 +171,7 @@ function buildTrie(patterns) {
     }
   }
 
+  nodes.forEach((node, i) => { node.fail = failures[i]; });
   return nodes;
 }
 
@@ -213,36 +221,77 @@ function buildTraversalSteps(originalNodes, enhancedNodes, text) {
   });
 }
 
+// Number of trie edges a cold state actually owns: d(v), i.e. the state's
+// own children in the trie. Cold rows are stored sparse and hold only these
+// trie edges -- NOT the extra transitions a failure-chain walk would resolve
+// for other characters. That failure-chain resolution is what the skip table
+// (Objective 1) precomputes for fast lookup, but it is a separate, derived
+// structure and is not counted as this state's own storage here.
+function coldRowSizes(nodes) {
+  return nodes.map(node => node.children.size);
+}
+
+const CELL_BYTES = 8;   // one machine word per transition cell (matches memory_layout.py stride)
+const cellsToKb = cells => cells * CELL_BYTES / 1024;
+
 function computeStorageSummary(originalNodes, enhancedNodes) {
-  const alphabetSize = FULL_ALPHABET.length;
+  const fullSize = FULL_ALPHABET.length;
   const enhancedAlphabet = getAlphabet(enhancedNodes);
-  const enhancedAlphabetSize = enhancedAlphabet.length;
-  const originalStorage = originalNodes.length * alphabetSize;
-  const hotStates = enhancedNodes.filter(node => node.children.size >= THETA).length;
-  const coldStates = enhancedNodes.length - hotStates;
-  const hotDenseStorage = hotStates * enhancedAlphabetSize;
-  const coldSparseStorage = enhancedNodes
-    .filter(node => node.children.size < THETA)
-    .reduce((sum, node) => sum + node.children.size, 0);
+  const sigma = enhancedAlphabet.length;
+  const rowSizes = coldRowSizes(enhancedNodes);
+  const isHot = node => node.children.size >= THETA;
+
+  const hotNodes = enhancedNodes.filter(isHot);
+  const coldNodes = enhancedNodes.filter(node => !isHot(node));
+  const hotStates = hotNodes.length;
+  const coldStates = coldNodes.length;
+
+  const hotDenseStorage = hotStates * sigma;
+  const coldSparseStorage = coldNodes.reduce((sum, node) => sum + rowSizes[node.id], 0);
+  const coldSizes = coldNodes.map(node => rowSizes[node.id]);
   const enhancedStorage = hotDenseStorage + coldSparseStorage;
+
+  const states = enhancedNodes.length;
+  const originalStorage = originalNodes.length * fullSize;        // Original AC, its own trie
+  const fullRowSameStates = states * fullSize;                    // |S_enh| x |Sigma_full|
+  const denseSameAlphabet = states * sigma;                       // |S_enh| x |Sigma_pattern|
+
+  const pct = (saved, base) => base ? (saved / base) * 100 : 0;
   const saved = originalStorage - enhancedStorage;
-  const savedPercent = originalStorage ? (saved / originalStorage) * 100 : 0;
 
   return {
     originalStates: originalNodes.length,
-    originalAlphabetSize: alphabetSize,
+    originalAlphabetSize: fullSize,
     originalAlphabet: FULL_ALPHABET,
     originalStorage,
-    totalStates: enhancedNodes.length,
-    alphabetSize: enhancedAlphabetSize,
+    totalStates: states,
+    alphabetSize: sigma,
     alphabet: enhancedAlphabet,
+    skipRowSizes: rowSizes,
     hotStates,
     coldStates,
+    hotRatioPercent: pct(hotStates, states),
     hotDenseStorage,
     coldSparseStorage,
+    coldRowMin: coldSizes.length ? Math.min(...coldSizes) : 0,
+    coldRowAvg: coldSizes.length ? coldSizes.reduce((a, b) => a + b, 0) / coldSizes.length : 0,
+    coldRowMax: coldSizes.length ? Math.max(...coldSizes) : 0,
+    coldDenseEquivalent: coldStates * sigma,
     enhancedStorage,
+    fullRowSameStates,
+    denseSameAlphabet,
     saved,
-    savedPercent
+    savedPercent: pct(saved, originalStorage),
+    savedVsFull: fullRowSameStates - enhancedStorage,
+    savedVsFullPercent: pct(fullRowSameStates - enhancedStorage, fullRowSameStates),
+    savedVsSameAlphabet: denseSameAlphabet - enhancedStorage,
+    savedVsSameAlphabetPercent: pct(denseSameAlphabet - enhancedStorage, denseSameAlphabet),
+    savingFromAlphabet: fullRowSameStates - denseSameAlphabet,
+    savingFromTiering: denseSameAlphabet - enhancedStorage,
+    originalKb: cellsToKb(originalStorage),
+    fullRowSameStatesKb: cellsToKb(fullRowSameStates),
+    denseSameAlphabetKb: cellsToKb(denseSameAlphabet),
+    enhancedKb: cellsToKb(enhancedStorage)
   };
 }
 
@@ -359,27 +408,42 @@ function render() {
     (S.resultReady ? 'Traversal complete.' : 'Simulating transition storage...');
 
   if (S.metrics) {
-    $('ometa').textContent = `original=${S.metrics.originalStorage} cells`;
-    $('emeta').textContent = `hot=${S.metrics.hotStates} | cold=${S.metrics.coldStates} | saved=${S.metrics.saved.toFixed(0)} cells`;
-    const maxStorage = Math.max(S.metrics.originalStorage, S.metrics.enhancedStorage, 1);
-    const baselineWidth = Math.max(3, S.metrics.originalStorage / maxStorage * 100);
-    const enhancedWidth = Math.max(3, S.metrics.enhancedStorage / maxStorage * 100);
-    const alphabetLabel = S.metrics.alphabet.map(ch => ch === ' ' ? '[space]' : ch).join(' ');
-    $('result').innerHTML = [
-      `Enhanced unique pattern characters (|Σ| = ${S.metrics.alphabetSize}): ${alphabetLabel}`,
-      `Original transition matrix: |S| × |Σ| = ${S.metrics.originalStates} × ${S.metrics.originalAlphabetSize} = ${S.metrics.originalStorage} cells`,
-      `Enhanced hot storage: ${S.metrics.hotStates} hot states × ${S.metrics.alphabetSize} unique characters = ${S.metrics.hotDenseStorage} cells`,
-      `Enhanced cold sparse storage: Σ cold d(v) = ${S.metrics.coldSparseStorage} cells`,
-      `Enhanced tiered formula: Σ hot |Σ| + Σ cold d(v) = ${S.metrics.hotDenseStorage} + ${S.metrics.coldSparseStorage} = ${S.metrics.enhancedStorage} cells`,
-      `Memory saved: ${S.metrics.saved.toFixed(0)} cells (${S.metrics.savedPercent.toFixed(1)}%)`,
-      `Hot states: ${S.metrics.hotStates}, cold states: ${S.metrics.coldStates}`,
-      `<div style="margin-top:.7rem;border-top:1px solid #d9cdbb;padding-top:.6rem">Original full rows <span style="display:inline-block;width:${baselineWidth}%;height:9px;background:#3978a8;border-radius:3px"></span> ${S.metrics.originalStorage}</div>`,
-      `<div>Enhanced tiers <span style="display:inline-block;width:${enhancedWidth}%;height:9px;background:#176b63;border-radius:3px"></span> ${S.metrics.enhancedStorage}</div>`
-    ].join('<br>');
+    const m = S.metrics;
+    const f1 = x => x.toFixed(1);
+    const kb = x => x.toFixed(2);
+    $('ometa').textContent = `original=${m.originalStorage} cells`;
+    $('emeta').textContent = `hot=${m.hotStates} | cold=${m.coldStates} | saved=${m.saved.toFixed(0)} cells`;
+    const maxStorage = Math.max(m.originalStorage, m.enhancedStorage, 1);
+    const baselineWidth = Math.max(3, m.originalStorage / maxStorage * 100);
+    const enhancedWidth = Math.max(3, m.enhancedStorage / maxStorage * 100);
+    const alphabetLabel = m.alphabet.map(ch => ch === ' ' ? '[space]' : ch).join(' ');
+    const line = t => `<div>${t}</div>`;
+    const box = (title, lines, wide) =>
+      `<div class="cr-box${wide ? ' wide' : ''}"><div class="cr-title">${title}</div>${lines.join('')}</div>`;
+
+    $('result').innerHTML = `<div class="cr-grid">` +
+      box('Baseline Result', [
+        line(`Enhanced unique pattern characters (|Σ| = ${m.alphabetSize}): ${alphabetLabel}`),
+        line(`Original transition matrix: |S| × |Σ| = ${m.originalStates} × ${m.originalAlphabetSize} = ${m.originalStorage} cells (${kb(m.originalKb)} KB)`)
+      ]) +
+      box('Enhanced Result', [
+        line(`Enhanced hot storage: ${m.hotStates} hot states × ${m.alphabetSize} unique characters = ${m.hotDenseStorage} cells`),
+        line(`Enhanced cold sparse storage: Σ cold d(v) = ${m.coldSparseStorage} cells`),
+        line(`Enhanced tiered formula: Σ hot |Σ| + Σ cold d(v) = ${m.hotDenseStorage} + ${m.coldSparseStorage} = ${m.enhancedStorage} cells`)
+      ]) +
+      box('Memory Saved', [
+        line(`Precomputed skip table: dense |S| × |Σ| = ${m.totalStates} × ${m.alphabetSize} = ${m.denseSameAlphabet} cells (${kb(m.denseSameAlphabetKb)} KB) → tiered ${m.enhancedStorage} cells (${kb(m.enhancedKb)} KB), ${m.savedVsSameAlphabet} cells saved (${f1(m.savedVsSameAlphabetPercent)}%)`),
+        line(`Memory saved: ${m.saved.toFixed(0)} cells (${f1(m.savedPercent)}%)`),
+        line(`Hot states: ${m.hotStates}, cold states: ${m.coldStates}`),
+        `<div style="margin-top:.6rem;border-top:1px solid #d9cdbb;padding-top:.5rem">Original full rows <span style="display:inline-block;width:${baselineWidth}%;height:9px;background:#3978a8;border-radius:3px"></span> ${m.originalStorage}</div>`,
+        `<div>Enhanced tiers <span style="display:inline-block;width:${enhancedWidth}%;height:9px;background:#176b63;border-radius:3px"></span> ${m.enhancedStorage}</div>`
+      ], true) +
+      `</div>`;
     $('storage').innerHTML = S.enhancedNodes.map(node => {
-      const enhancedCells = node.children.size >= THETA ? S.metrics.alphabetSize : node.children.size;
-      const tier = node.children.size >= THETA ? 'Hot / dense' : 'Cold / sparse';
-      return `<tr><td>${node.id}</td><td>${S.metrics.originalAlphabetSize}</td><td>${enhancedCells}</td><td>${tier}</td></tr>`;
+      const hot = node.children.size >= THETA;
+      const enhancedCells = hot ? m.alphabetSize : m.skipRowSizes[node.id];
+      const tier = hot ? 'Hot / dense' : 'Cold / sparse';
+      return `<tr><td>${node.id}</td><td>${m.originalAlphabetSize}</td><td>${enhancedCells}</td><td>${tier}</td></tr>`;
     }).join('');
   }
 }

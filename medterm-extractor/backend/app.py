@@ -8,6 +8,8 @@ GET  /                       -> serves the frontend (index.html)
 POST /api/ocr                -> multipart image upload -> {"text": "..."}
 POST /api/analyze            -> {"text": "...", "mode": "original"|"enhanced"}
                                  -> matched medical terms
+GET  /api/storage-metrics    -> measured hot/cold transition-storage figures
+                                 for the resident enhanced automaton
 
 Run with:
     cd backend
@@ -271,6 +273,14 @@ def analyze():
         "mode": "original",
         "matches": matches,
     })
+
+
+@app.route("/api/storage-metrics", methods=["GET"])
+def storage_metrics():
+    """Objective 3 figures measured from the resident enhanced automaton
+    (full dictionary): hot/cold split, dense vs sparse cells, and savings
+    against both the full-row and same-alphabet baselines."""
+    return jsonify(enhanced_engine.storage_metrics())
 
 
 @app.route("/api/benchmark", methods=["POST"])

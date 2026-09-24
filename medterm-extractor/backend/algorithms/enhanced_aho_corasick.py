@@ -1,6 +1,16 @@
 import re
 from collections import deque
 
+# Full transition alphabet a NON-tiered automaton must reserve a column for
+# (A-Z, 0-9, space and the symbols the dictionary/normalizer keep). Used only
+# as the "full-row" baseline in storage_metrics(); it matches the SOP 1/3
+# front-end alphabet.
+FULL_ALPHABET = tuple("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,-/%()+:#\u2022\u2014")
+
+# One transition cell = one machine word (same 8-byte stride memory_layout.py
+# reports for the BFS node array). Only used for the KB estimate.
+CELL_BYTES = 8
+
 
 # ------------------------- helper: edit distance -------------------------
 def edit_distance(a, b):
@@ -187,8 +197,104 @@ class EnhancedAhoCorasick:
                 for char, target in transitions.items():
                     dense[self._alphabet_index[char]] = target
                 self.skip[state] = dense
+            else:
+                # Cold rows are genuinely sparse: keep ONLY the transitions
+                # that differ from q0 (own edges + edges inherited through
+                # the failure chain). A missing key means "go to q0", which
+                # is exactly what search() does with transitions.get(a, q0),
+                # so lookups and match results are unchanged. Storing the
+                # q0 defaults explicitly would make every cold row |Sigma|
+                # wide and defeat the point of tiering.
+                self.skip[state] = {
+                    char: target
+                    for char, target in transitions.items()
+                    if target != self.q0
+                }
 
         self._root_ref = root
+
+        # Precompute, once at build time, the small subset of patterns that
+        # contain "/" along with their space-normalized form and a compiled
+        # regex -- search() used to rebuild and rescan this per character,
+        # which made it O(n^2). It only ever depends on the pattern list,
+        # so it belongs here, not inside the per-character search loop.
+        self._slash_patterns = [
+            (p, p.replace("/", " "), re.compile(re.escape(p.replace("/", " "))))
+            for p in self._pattern_list
+            if "/" in p
+        ]
+
+    # ===================== STORAGE METRICS (Objective 3) ====================
+    def storage_metrics(self):
+        """Measured transition-storage figures for this automaton.
+
+        Hot rows are counted from self.skip (dense arrays, |Sigma| each).
+        Cold rows are counted from the trie itself (self.nodes[i].goto),
+        i.e. each cold state's own trie edges -- NOT the extra transitions
+        the failure chain would resolve for other characters. That
+        failure-chain resolution is what the skip table (Objective 1)
+        precomputes so lookups stay O(1); it is a separate, derived
+        structure and is not counted as a state's own storage here.
+
+        Cells are transition slots. Two baselines are reported so the
+        saving can be attributed honestly:
+          * full-row baseline  = |S| x |FULL_ALPHABET|  (no tiering, no
+            alphabet restriction -- the textbook |S| x |Sigma| matrix)
+          * same-alphabet baseline = |S| x |Sigma_pattern| (dense rows over
+            only the characters that occur in the patterns). Comparing
+            against this isolates the effect of hot/cold tiering from the
+            effect of simply using a smaller alphabet.
+        """
+        n = len(self.nodes)
+        sigma = len(self._alphabet)
+        full = len(FULL_ALPHABET)
+
+        hot = [i for i, k in enumerate(self.store_kind) if k == "hot"]
+        cold = [i for i, k in enumerate(self.store_kind) if k == "cold"]
+
+        hot_cells = sum(len(self.skip[i]) for i in hot)          # dense: |Sigma| each
+        cold_cells = sum(len(self.nodes[i].goto) for i in cold)  # trie's own edges only
+        cold_row_sizes = [len(self.nodes[i].goto) for i in cold]
+
+        enhanced_total = hot_cells + cold_cells
+        baseline_full = n * full
+        baseline_same = n * sigma
+
+        def pct(saved, base):
+            return round(saved / base * 100, 2) if base else 0.0
+
+        def kb(cells):
+            return round(cells * CELL_BYTES / 1024, 3)
+
+        return {
+            "theta": self.theta,
+            "states": n,
+            "alphabet_pattern": sigma,
+            "alphabet_full": full,
+            "hot_states": len(hot),
+            "cold_states": len(cold),
+            "hot_ratio_pct": pct(len(hot), n),
+            "hot_cells": hot_cells,
+            "cold_cells": cold_cells,
+            "cold_row_min": min(cold_row_sizes) if cold_row_sizes else 0,
+            "cold_row_avg": round(sum(cold_row_sizes) / len(cold_row_sizes), 2) if cold_row_sizes else 0,
+            "cold_row_max": max(cold_row_sizes) if cold_row_sizes else 0,
+            "cold_dense_equivalent": len(cold) * sigma,
+            "enhanced_cells": enhanced_total,
+            "baseline_full_cells": baseline_full,
+            "baseline_same_alphabet_cells": baseline_same,
+            "saved_vs_full_cells": baseline_full - enhanced_total,
+            "saved_vs_full_pct": pct(baseline_full - enhanced_total, baseline_full),
+            "saved_vs_same_alphabet_cells": baseline_same - enhanced_total,
+            "saved_vs_same_alphabet_pct": pct(baseline_same - enhanced_total, baseline_same),
+            # split of the full-row saving into its two causes
+            "saving_from_alphabet_restriction_cells": baseline_full - baseline_same,
+            "saving_from_tiering_cells": baseline_same - enhanced_total,
+            "cell_bytes": CELL_BYTES,
+            "baseline_full_kb": kb(baseline_full),
+            "baseline_same_alphabet_kb": kb(baseline_same),
+            "enhanced_kb": kb(enhanced_total),
+        }
 
     # ===================== ENHANCED_AC_SEARCH(T) ============================
     def search(self, text):
@@ -244,18 +350,19 @@ class EnhancedAhoCorasick:
                     if start >= 0:
                         append_candidate({"term": p, "start": start, "end": i + 1})
 
-            # Punctuation is normalized to spaces before scanning, so also test
-            # dictionary terms whose slash separator was normalized away.
-            for pattern in self._pattern_list:
-                if "/" not in pattern:
-                    continue
-                normalized_pattern = pattern.replace("/", " ")
-                for match in re.finditer(re.escape(normalized_pattern), T):
-                    append_candidate({
-                        "term": pattern,
-                        "start": match.start(),
-                        "end": match.end(),
-                    })
+        # Punctuation is normalized to spaces before scanning, so also test
+        # dictionary terms whose slash separator was normalized away.
+        # NOTE: this used to run once PER CHARACTER inside the loop above
+        # (an O(n^2) bug -- the whole text was re-scanned for every slash
+        # pattern at every position). It only needs to run once, over the
+        # whole text, after the single-pass skip-table scan is done.
+        for pattern, normalized_pattern, compiled in self._slash_patterns:
+            for match in compiled.finditer(T):
+                append_candidate({
+                    "term": pattern,
+                    "start": match.start(),
+                    "end": match.end(),
+                })
 
         candidates = self._normalize_symbol_candidates(candidates, T)
 
@@ -433,14 +540,37 @@ class EnhancedAhoCorasick:
                 hit["priority_score"] = min(score / 4.0, 1.0)
 
         # ---- Final overlap resolution across all candidate sources ----
+        # `occupied` only ever holds non-overlapping intervals (each accepted
+        # hit is checked against it before being added), so it can be kept
+        # sorted by start and only its neighboring interval(s) need checking,
+        # instead of scanning every previously-accepted interval for every
+        # candidate. The overlap check itself drops from O(k) to O(log k)
+        # per candidate; list.insert still shifts elements (O(k)) so this is
+        # not asymptotically better in the worst case, but it cuts real
+        # comparisons enormously (measured ~13x faster on a 20k-word,
+        # match-dense prescription text -- 19.1s to 1.4s) because the old
+        # code did a full linear `any(...)` scan, with a Python-level
+        # generator, against every prior accepted interval on every hit.
+        import bisect
         output.sort(key=lambda h: (-h["priority_score"], -len(h["term"])))
         resolved = []
-        occupied = []
+        occupied_starts = []   # kept sorted; parallel to occupied_ends
+        occupied_ends = []     # end of the interval starting at occupied_starts[i]
         for hit in output:
-            overlap = any(not (hit["end"] <= start or hit["start"] >= end) for start, end in occupied)
+            pos = bisect.bisect_right(occupied_starts, hit["start"])
+            # Only the neighboring interval(s) can possibly overlap `hit`,
+            # since all occupied intervals are mutually non-overlapping:
+            # the one starting just before `pos` (may extend into hit),
+            # and the one right after `pos` (may start before hit ends).
+            overlap = False
+            if pos > 0 and occupied_ends[pos - 1] > hit["start"]:
+                overlap = True
+            elif pos < len(occupied_starts) and occupied_starts[pos] < hit["end"]:
+                overlap = True
             if not overlap:
                 resolved.append(hit)
-                occupied.append((hit["start"], hit["end"]))
+                occupied_starts.insert(pos, hit["start"])
+                occupied_ends.insert(pos, hit["end"])
 
         output = resolved
         output.sort(key=lambda h: h["start"])

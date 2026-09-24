@@ -610,7 +610,7 @@
   </div>
 
   <script>
-    const SIGMA = Array.from("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,-/%()+:");
+    const SIGMA = Array.from("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,-/%()+:#•—");
     const CHAR_INDEX = new Map(SIGMA.map((c, i) => [c, i]));
     const DEFAULT_PATTERN_CATALOG = [
       "BIOGESIC", "PARACETAMOL", "IBUPROFEN", "COLD", "COLD COMPRESS", "FEVER", "BID", "TAB", "MG"
@@ -1140,7 +1140,7 @@
       state.timer = setInterval(() => {
         if (state.idx >= state.stepsOriginal.length - 1) {
           stopPlay();
-          runBenchmarkWhenComplete();
+          ui.status.textContent += "\nTraversal complete.";
           return;
         }
         state.idx += 1;
@@ -1157,7 +1157,7 @@
 
     async function buildAndRun() {
       stopPlay();
-      ui.pyBenchmarkBox.textContent = "Simulation running... comparative results will appear when the progress bar is complete.";
+      ui.pyBenchmarkBox.textContent = "Simulation running... comparative results will appear shortly.";
 
       let patterns = [];
       let originalPatterns = [];
@@ -1221,6 +1221,11 @@
 
       renderStep();
       play();
+
+      // Fire the comparative-result benchmark right away instead of waiting
+      // for the step-by-step animation to finish playing.
+      state.benchmarkStarted = true;
+      runPythonBenchmarkMode();
     }
 
     ui.buildRun.addEventListener("click", buildAndRun);

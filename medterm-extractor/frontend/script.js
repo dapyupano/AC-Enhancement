@@ -176,6 +176,101 @@ async function runAnalysis() {
   }
 }
 
+// ------------------------- input stats (chars + memory) ---------------------
+// Memory is estimated with the same "cells" formula used on the SOP 3 page
+// (Tiered Hot/Cold Transition Storage): a trie is built from the terms
+// actually detected in this run, then storage is counted per SOP 3's
+// |S| x |Sigma| (baseline) and hot/cold tiered (enhanced) formulas.
+const STATS_THETA = 4;
+const STATS_FULL_ALPHABET = Array.from("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,-/%()+:#•—");
+
+const statCharCount = document.getElementById("statCharCount");
+const statMemory = document.getElementById("statMemory");
+
+function statsBuildTrie(patterns) {
+  const nodes = [{ id: 0, children: new Map() }];
+  for (const pattern of patterns) {
+    let current = 0;
+    for (const ch of pattern) {
+      if (!nodes[current].children.has(ch)) {
+        nodes.push({ id: nodes.length, children: new Map() });
+        nodes[current].children.set(ch, nodes.length - 1);
+      }
+      current = nodes[current].children.get(ch);
+    }
+  }
+
+  // Failure links, needed to count the transitions each state inherits.
+  const failures = Array(nodes.length).fill(0);
+  const queue = [...nodes[0].children.values()];
+  while (queue.length) {
+    const state = queue.shift();
+    for (const [char, child] of nodes[state].children) {
+      let fallback = failures[state];
+      while (fallback && !nodes[fallback].children.has(char)) fallback = failures[fallback];
+      const transition = nodes[fallback].children.get(char);
+      failures[child] = transition !== undefined && transition !== child ? transition : 0;
+      queue.push(child);
+    }
+  }
+  nodes.forEach((node, i) => { node.fail = failures[i]; });
+  return nodes;
+}
+
+// Skip-table entries a state really needs: characters whose precomputed
+// target is not q0 (own trie edges + edges inherited through the failure
+// chain). Counting only trie edges under-reports cold storage.
+function statsSkipRowSize(nodes, node, alphabet) {
+  let count = 0;
+  for (const a of alphabet) {
+    let s = node.id;
+    while (s !== 0 && !nodes[s].children.has(a)) s = nodes[s].fail;
+    if (nodes[s].children.has(a)) count++;
+  }
+  return count;
+}
+
+function statsGetAlphabet(trieNodes) {
+  return [...new Set(trieNodes.flatMap((node) => [...node.children.keys()]))];
+}
+
+function computeMemoryStats(matches) {
+  const patterns = [
+    ...new Set(
+      (matches || [])
+        .filter((m) => !m.dropped)
+        .map((m) => (m.matched_dictionary_term || m.term || "").toUpperCase())
+        .filter(Boolean)
+    ),
+  ];
+
+  const nodes = statsBuildTrie(patterns);
+  const alphabetSize = STATS_FULL_ALPHABET.length;
+  const originalStorage = nodes.length * alphabetSize;
+
+  const enhancedAlphabet = statsGetAlphabet(nodes);
+  const enhancedAlphabetSize = enhancedAlphabet.length;
+  const hotStates = nodes.filter((n) => n.children.size >= STATS_THETA).length;
+  const hotDenseStorage = hotStates * enhancedAlphabetSize;
+  const coldSparseStorage = nodes
+    .filter((n) => n.children.size < STATS_THETA)
+    .reduce((sum, n) => sum + statsSkipRowSize(nodes, n, enhancedAlphabet), 0);
+  const enhancedStorage = hotDenseStorage + coldSparseStorage;
+
+  const saved = originalStorage - enhancedStorage;
+  const savedPercent = originalStorage ? (saved / originalStorage) * 100 : 0;
+
+  return { originalStorage, enhancedStorage, saved, savedPercent };
+}
+
+function renderInputStats(text, matches, isEnhanced) {
+  statCharCount.textContent = text.length;
+
+  const mem = computeMemoryStats(matches);
+  const cells = isEnhanced ? mem.enhancedStorage : mem.originalStorage;
+  statMemory.textContent = `${cells} cells`;
+}
+
 // ------------------------------ rendering -----------------------------------
 function renderResults(originalText, data) {
   resultsContent.hidden = false;
@@ -189,6 +284,7 @@ function renderResults(originalText, data) {
   abbrevCol.hidden = !isEnhanced;
   saveResultBtn.hidden = !isEnhanced;
 
+  renderInputStats(originalText, data.matches, isEnhanced);
   renderHighlightedText(originalText, data.matches);
   renderTermsTable(data.matches, isEnhanced);
 
