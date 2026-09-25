@@ -288,6 +288,17 @@ function computeStorageSummary(originalNodes, enhancedNodes) {
     savedVsSameAlphabetPercent: pct(denseSameAlphabet - enhancedStorage, denseSameAlphabet),
     savingFromAlphabet: fullRowSameStates - denseSameAlphabet,
     savingFromTiering: denseSameAlphabet - enhancedStorage,
+    // Additive breakdown of the headline "Memory saved" figure (saved / originalStorage,
+    // e.g. 2200 / 2254 = 97.6%). Both shares below use originalStorage as the SAME
+    // denominator (the baseline AC's own node count x full alphabet) so they sum
+    // correctly to savedPercent: savingFromAlphabetPercentOfTotal + savingFromTieringPercentOfTotal = savedPercent.
+    // NOTE: denseSameAlphabet (800) is computed from the ENHANCED automaton's node
+    // count (totalStates), which can differ from originalNodes.length used in
+    // originalStorage (2254) -- they come from separately-built tries. The old
+    // savedVsSameAlphabetPercent (93.3%) divided by denseSameAlphabet (800) itself,
+    // which is why it did not add up with the alphabet-restriction share.
+    savingFromAlphabetPercentOfTotal: pct(originalStorage - denseSameAlphabet, originalStorage),
+    savingFromTieringPercentOfTotal: pct(denseSameAlphabet - enhancedStorage, originalStorage),
     originalKb: cellsToKb(originalStorage),
     fullRowSameStatesKb: cellsToKb(fullRowSameStates),
     denseSameAlphabetKb: cellsToKb(denseSameAlphabet),
@@ -429,12 +440,14 @@ function render() {
       box('Enhanced Result', [
         line(`Enhanced hot storage: ${m.hotStates} hot states × ${m.alphabetSize} unique characters = ${m.hotDenseStorage} cells`),
         line(`Enhanced cold sparse storage: Σ cold d(v) = ${m.coldSparseStorage} cells`),
-        line(`Enhanced tiered formula: Σ hot |Σ| + Σ cold d(v) = ${m.hotDenseStorage} + ${m.coldSparseStorage} = ${m.enhancedStorage} cells`)
+        line(`Enhanced tiered formula: Σ hot |Σ| + Σ cold d(v) = ${m.hotDenseStorage} + ${m.coldSparseStorage} = ${m.enhancedStorage} cells`),
+        line(`Hot states: ${m.hotStates}, cold states: ${m.coldStates}`)
       ]) +
       box('Memory Saved', [
-        line(`Precomputed skip table: dense |S| × |Σ| = ${m.totalStates} × ${m.alphabetSize} = ${m.denseSameAlphabet} cells (${kb(m.denseSameAlphabetKb)} KB) → tiered ${m.enhancedStorage} cells (${kb(m.enhancedKb)} KB), ${m.savedVsSameAlphabet} cells saved (${f1(m.savedVsSameAlphabetPercent)}%)`),
-        line(`Memory saved: ${m.saved.toFixed(0)} cells (${f1(m.savedPercent)}%)`),
-        line(`Hot states: ${m.hotStates}, cold states: ${m.coldStates}`),
+        line(`<strong>Precomputed skip table optimization:</strong>`),
+        line(`Alphabet restriction → ${m.originalStorage} − ${m.denseSameAlphabet} = ${m.originalStorage - m.denseSameAlphabet} cells → ${m.originalStorage - m.denseSameAlphabet} / ${m.originalStorage} = ${f1(m.savingFromAlphabetPercentOfTotal)}%`),
+        line(`Hot/cold tiering (same-alphabet − enhanced total) → ${m.denseSameAlphabet} − ${m.enhancedStorage} = ${m.savedVsSameAlphabet} cells → ${m.savedVsSameAlphabet} / ${m.originalStorage} = ${f1(m.savingFromTieringPercentOfTotal)}%`),
+        line(`<strong>Memory saved: ${m.saved.toFixed(0)} cells (${f1(m.savedPercent)}%)</strong>`),
         `<div style="margin-top:.6rem;border-top:1px solid #d9cdbb;padding-top:.5rem">Original full rows <span style="display:inline-block;width:${baselineWidth}%;height:9px;background:#3978a8;border-radius:3px"></span> ${m.originalStorage}</div>`,
         `<div>Enhanced tiers <span style="display:inline-block;width:${enhancedWidth}%;height:9px;background:#176b63;border-radius:3px"></span> ${m.enhancedStorage}</div>`
       ], true) +

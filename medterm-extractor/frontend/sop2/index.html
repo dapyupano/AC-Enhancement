@@ -88,7 +88,7 @@
   <div class="buttons-left"><button id="build" class="primary">Run</button></div>
 </div></section>
         <div class="progress"><span id="bar"></span></div><div class="cmp-layout"><section class="panel"><div class="layout-head"><span>Memory layout for this run</span><small id="layoutMeta">Waiting...</small></div><div class="layout-table-wrap"><table class="layout-table"><thead><tr><th rowspan="2">Depth</th><th colspan="2" class="original-col">Original</th><th colspan="3" class="bfs-col">Enhanced two-pass BFS</th></tr><tr><th class="original-col">Address</th><th class="original-col">Node</th><th class="bfs-col">Address</th><th class="bfs-col">Node</th><th class="bfs-col">Rank</th></tr></thead><tbody id="layoutRows"><tr><td colspan="6">Build the memory layout to see the node addresses.</td></tr></tbody></table></div></section><aside class="side"><section class="status" id="status">Waiting for prescription input.</section><section class="bench-wrap"><div class="bench-title">Comparative Result</div><div class="bench-box" id="result">Build the memory layout to see the comparison.</div></section></aside></div>
-<section class="panel fig-panel"><div class="layout-head"><span>Memory access pattern during search</span><small id="accessMeta">Waiting...</small></div><div class="fig-body"><svg id="accessFigure" viewBox="0 0 900 200" role="img" aria-label="Scattered versus contiguous memory access during search"></svg><div class="fig-stats" id="accessStats">Run the simulation to compare cache-line changes for both layouts.</div></div></section>
+<section class="panel fig-panel"><div class="layout-head"><span>Memory access pattern during search</span></div><div class="fig-body"><svg id="accessFigure" viewBox="0 0 900 200" role="img" aria-label="Scattered versus contiguous memory access during search"></svg><div class="fig-stats" id="accessStats">Run the simulation to compare cache-line changes for both layouts.</div></div></section>
 </div>
 <script>
 const $ = id => document.getElementById(id);
@@ -527,7 +527,6 @@ function clearAccessFigure(message = 'Run the simulation to see the memory acces
   svg.setAttribute('viewBox', '0 0 900 200');
   svg.appendChild(svgEl('text', { x: 450, y: 100, 'text-anchor': 'middle', 'font-size': 14, fill: '#60736e', 'font-family': 'Times New Roman' }, message));
   $('accessStats').textContent = 'Run the simulation to compare cache-line changes for both layouts.';
-  $('accessMeta').textContent = 'Waiting...';
 }
 
 function renderAccessFigure() {
@@ -640,7 +639,6 @@ function renderAccessFigure() {
   // Summary under the figure
   const o = trace.original, b = trace.bfs, t = trace.transitions;
   const pct = v => (t ? ((v / t) * 100).toFixed(0) : '0') + '%';
-  $('accessMeta').textContent = `${n} characters | ${accesses.length} node accesses | ${trace.hops} failure hops`;
   $('accessStats').textContent = [
     `Original (scattered):   ${o.lineChanges} of ${t} accesses land on a new 64 B cache line (${pct(o.lineChanges)}), ${o.pageChanges} on a new 4 KB page, largest jump ${formatKb(o.maxJump / 1024)} KB`,
     `Two-pass BFS (contiguous): ${b.lineChanges} of ${t} accesses land on a new 64 B cache line (${pct(b.lineChanges)}), ${b.pageChanges} on a new 4 KB page, largest jump ${formatKb(b.maxJump / 1024)} KB`

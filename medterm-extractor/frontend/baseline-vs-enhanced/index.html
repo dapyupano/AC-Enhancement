@@ -452,8 +452,12 @@
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Pattern extraction failed.");
 
+      const relevant = mode === "enhanced"
+        ? (data.matches || []).filter(match => !match.dropped)
+        : (data.matches || []);
+
       const found = canonicalizePatterns(
-        (data.matches || []).map(match => match.matched_dictionary_term || match.term).filter(Boolean)
+        relevant.map(match => match.matched_dictionary_term || match.term).filter(Boolean)
       );
       return found;
     }

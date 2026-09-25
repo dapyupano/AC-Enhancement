@@ -37,6 +37,7 @@ SALBUTAMOL,Drug,
 NEBULE,Dosage,
 10MG/TAB,Dosage,
 625MG,Dosage, 
+600MG,Dosage, 
 250MG,Dosage,
 500MG,Dosage,
 MG,Dosage,Milligram
@@ -342,5 +343,17 @@ AOG,Abbreviation,Age of gestation / Gestational age
 GA,Abbreviation,Age of gestation / Gestational age
 UTI,Abbreviation,Urinary tract infection
 SIG,Abbreviation,Directions for use
+ZYKAST,Drug,
+AVAMYS,Drug,
+NASOFLO,Drug,
+KAMILLOSAN,Drug,
+BACTIDOL,Drug,
+NAC,Abbreviation,N-Acetylcysteine
+2X/DAY,Frequency,
+2 WEEKS,Frequency,
+PER NOSTRIL,Frequency,
+BOTH NOSTRILS,Frequency,
+EVERY 12 HRS,Frequency,
+GARGLE,Treatment,
 COLD,Symptom,Common cold
 PAIN,Symptom,Pain or discomfort
