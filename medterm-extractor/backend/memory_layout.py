@@ -25,7 +25,7 @@ import ctypes
 from collections import deque
 
 from algorithms.original_aho_corasick import OriginalAhoCorasick
-from algorithms.enhanced_aho_corasick import EnhancedAhoCorasick
+from algorithms.enhanced_aho_corasick import EnhancedAhoCorasick, FULL_ALPHABET, CELL_BYTES
 
 
 def _bfs_walk_original(root):
@@ -132,7 +132,30 @@ def get_run_memory_layout(detected_terms):
             },
         })
 
+    # ---- TRANSITION STORAGE (SOP 2 = layout only, no memory saving) ----
+    # Two-Pass BFS moves nodes into one contiguous array but every state
+    # still owns a full-alphabet row, so storage stays |S| x |Sigma|.
+    # Both figures are computed from the real node counts of each trie
+    # (not hard-coded) so any change in node count would show up here.
+    sigma = len(FULL_ALPHABET)
+    baseline_cells = len(b_nodes) * sigma
+    bfs_cells = len(e_nodes) * sigma
+    saved_cells = baseline_cells - bfs_cells
+    transition_storage = {
+        "formula": "|S| x |Sigma|",
+        "alphabet": sigma,
+        "baseline_states": len(b_nodes),
+        "bfs_states": len(e_nodes),
+        "baseline_cells": baseline_cells,
+        "bfs_only_cells": bfs_cells,
+        "baseline_kb": round(baseline_cells * CELL_BYTES / 1024, 3),
+        "bfs_only_kb": round(bfs_cells * CELL_BYTES / 1024, 3),
+        "saved_cells": saved_cells,
+        "saved_pct": round(saved_cells / baseline_cells * 100, 2) if baseline_cells else 0.0,
+    }
+
     return {
+        "transition_storage": transition_storage,
         "patterns": detected_terms,
         "original_count": len(b_nodes),
         "bfs_count": len(e_nodes),

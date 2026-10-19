@@ -90,6 +90,7 @@
         <div class="progress"><span id="bar"></span></div><div class="cmp-layout"><section class="panel"><div class="layout-head"><span>Memory layout for this run</span><small id="layoutMeta">Waiting...</small></div><div class="layout-table-wrap"><table class="layout-table"><thead><tr><th rowspan="2">Depth</th><th colspan="2" class="original-col">Original</th><th colspan="3" class="bfs-col">Enhanced two-pass BFS</th></tr><tr><th class="original-col">Address</th><th class="original-col">Node</th><th class="bfs-col">Address</th><th class="bfs-col">Node</th><th class="bfs-col">Rank</th></tr></thead><tbody id="layoutRows"><tr><td colspan="6">Build the memory layout to see the node addresses.</td></tr></tbody></table></div></section><aside class="side"><section class="status" id="status">Waiting for prescription input.</section><section class="bench-wrap"><div class="bench-title">Comparative Result</div><div class="bench-box" id="result">Build the memory layout to see the comparison.</div></section></aside></div>
 <section class="panel fig-panel"><div class="layout-head"><span>Memory access pattern during search</span></div><div class="fig-body"><svg id="accessFigure" viewBox="0 0 900 200" role="img" aria-label="Scattered versus contiguous memory access during search"></svg><div class="fig-stats" id="accessStats">Run the simulation to compare cache-line changes for both layouts.</div></div></section>
 </div>
+<script src="../history-helper.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const INITIAL_STATUS = 'SOP 2 compares scattered insertion-order nodes with a contiguous two-pass BFS layout to improve memory locality.';
@@ -645,12 +646,30 @@ function renderAccessFigure() {
   ].join('\n');
 }
 
+const FULL_ALPHABET_SIZE = Array.from('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,-/%()+:#•—').length;
+const CELL_BYTES = 8;
+
+// Same basis as SOP 3 "Original transition matrix": states of the trie built
+// from the ORIGINAL algorithm's patterns x the full alphabet. Two-Pass BFS only
+// reorders those nodes, so its storage is unchanged.
+function storageLines() {
+  if (!S.storageStates) return [];
+  const cells = S.storageStates * FULL_ALPHABET_SIZE;
+  const kb = (cells * CELL_BYTES / 1024).toFixed(2);
+  return [
+    `Two-Pass BFS transition storage: |S| × |Σ| = ${S.storageStates} × ${FULL_ALPHABET_SIZE} = ${cells} cells (${kb} KB)`
+  ];
+}
+
 function render() {
   if (!S.memoryLayout) return;
   renderMemoryLayout(S.memoryLayout);
   $('bar').style.width = '100%';
   S.resultReady = true;
-  $('status').textContent = `Memory layout ready: ${S.memoryLayout.original_count} original nodes and ${S.memoryLayout.bfs_count} contiguous BFS nodes.`;
+  $('status').textContent = [
+    `Memory layout ready: ${S.memoryLayout.original_count} original nodes and ${S.memoryLayout.bfs_count} contiguous BFS nodes.`,
+    ...storageLines()
+  ].join('\n');
   $('result').textContent = [
     `Original nodes: ${S.memoryLayout.original_count} (scattered addresses)`,
     `Two-pass BFS nodes: ${S.memoryLayout.bfs_count} (contiguous addresses)`,
@@ -706,6 +725,7 @@ $('build').onclick = async () => {
     }
     S.patterns = patterns;
     S.text = text;
+    S.storageStates = buildTrie(originalPatterns).length;
     S.memoryLayout = enhancedResult.memoryLayout;
     S.nodes = [];
     const trie = buildTrie(patterns);
@@ -721,6 +741,24 @@ $('build').onclick = async () => {
 
     $('status').textContent = 'Loading the original and two-pass BFS memory layout...';
     render();
+    saveActivityHistory({
+      source: 'SOP 2',
+      sourcePage: '../sop2/index.html',
+      mode: 'sop2',
+      text,
+      matchCount: enhancedPatterns.length,
+      terms: enhancedPatterns,
+      resultText: $('result').textContent,
+      visuals: {
+        layoutRows: $('layoutRows').innerHTML,
+        accessFigure: $('accessFigure').innerHTML,
+        accessStats: $('accessStats').textContent,
+        layoutMeta: $('layoutMeta').textContent,
+        patternsOriginal: $('patternsOriginal').value,
+        patternsEnhanced: $('patternsEnhanced').value,
+        progress: $('bar').style.width,
+      }
+    });
   } catch (err) {
     $('status').textContent = err.message;
   }
@@ -771,6 +809,21 @@ $('ocr').onclick = async () => {
 };
 
   clearAccessFigure();
+
+const restoredEntry = consumeActivityHistory('SOP 2');
+if (restoredEntry) {
+  $('prescription').value = restoredEntry.text || '';
+  $('result').textContent = restoredEntry.resultText || 'Saved SOP 2 result.';
+  const visuals = restoredEntry.visuals || {};
+  $('layoutRows').innerHTML = visuals.layoutRows || '<tr><td colspan="6">Saved layout unavailable.</td></tr>';
+  $('accessFigure').innerHTML = visuals.accessFigure || '';
+  $('accessStats').textContent = visuals.accessStats || 'Saved result restored from history.';
+  $('layoutMeta').textContent = visuals.layoutMeta || 'Saved from history';
+  $('patternsOriginal').value = visuals.patternsOriginal || '';
+  $('patternsEnhanced').value = visuals.patternsEnhanced || '';
+  $('bar').style.width = visuals.progress || '100%';
+  $('status').textContent = 'Saved SOP 2 result and visuals restored from history.';
+}
 
 </script>
 </div>

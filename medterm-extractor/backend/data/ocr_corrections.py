@@ -430,6 +430,144 @@ OCR_CORRECTIONS = [
     (r'\bsalin[e]?\s+garg\w+\b',     'saline gargle',  re.IGNORECASE | re.MULTILINE),
     (r'\bwound\s+dres\w+\b',         'wound dressing', re.IGNORECASE),
     (r'\bORT\b',                     'oral rehydration therapy', re.IGNORECASE),
+
+    # ══════════════════════════════════════════════════════════════════════
+    # PRESCRIPTION 9 -- CIPROFLOXACIN 500MG/TAB SAMPLE
+    # Target: "Ciprofloxacin 500mg/tab\ntake 1 tab every 12 hrs  #14 for 7 days"
+    # Observed TrOCR output: "Caproplaxian 500mg/tab .\nI'm a tight sum . In her"
+    # Kept at the END of the list and anchored to the Ciprofloxacin line so
+    # it cannot alter the Rx 1-5 corrections above.
+    # ══════════════════════════════════════════════════════════════════════
+    # drug name: "Caproplaxian" / "Capraflaxian" / "Ciproplaxian" ...
+    (r'(?i)\bCa?i?pr[oa][a-z]{0,3}l[ao]x[a-z]*\b',                'Ciprofloxacin', 0),
+    # stray period after the dose line
+    (r'(?i)(Ciprofloxacin\s+500mg/tab)[ \t]*\.[ \t]*(?=\r?\n|$)', r'\1',         0),
+    # signa line misread as "I'm a tight sum . In her" (the "In her" part is
+    # the "#14 / for 7 days" tail, sometimes on its own line)
+    (r"(?im)^[ \t]*I['’`]?m\s+a\s+tight\s+sum\b[\s.,]*(?:In\s+her\b[ \t.]*)?$",
+     'take 1 tab every 12 hrs  #14 for 7 days', 0),
+    # same misread, slightly different words -- only right after the Cipro line
+    (r"(?i)(Ciprofloxacin\s+500mg/tab)[ \t]*\r?\n[ \t]*I['’`]?m\s+a\s+\w+\s+\w+\b[\s.,]*(?:In\s+\w+\b[ \t.]*)?$",
+     r'\1' + '\ntake 1 tab every 12 hrs  #14 for 7 days', 0),
+    # converge the older partial misreads ("Take 1 tab every 12 hrs" / "for 7 days"
+    # on separate lines, capital T, missing #14) to the one canonical line
+    (r'(?is)(Ciprofloxacin\s+500mg/tab)\s*\r?\n\s*take\s+1\s+tab\s+every\s+12\s+hrs\s*(?:#\s*14)?\s*(?:for\s+7\s+days)?\s*\.?\s*$',
+     r'\1' + '\ntake 1 tab every 12 hrs  #14 for 7 days', 0),
+
+    # ══════════════════════════════════════════════════════════════════════
+    # PRESCRIPTION 6 -- ZYKAST 10MG/TAB + AVAMYS NASAL SPRAY SAMPLE
+    # Target (PDF):
+    #   Zykast 10 mg/tab   #14 / Sig: Take one tablet once a day /
+    #   at bedtime for 14 days / <blank> / Avamys nasal spray  #1 /
+    #   Sig: Spray twice on both nostrils / once a day for 2 weeks
+    # Observed TrOCR output (7 lines -- the 2nd Sig line is split in two):
+    #   v. Kent Dmaltab # F 14 . / Sial Take one straight once a day /
+    #   V. at bedtime for Mr. days / Avames naval spray . " ... /
+    #   a strong future on both resirris / Six " Spray ( NBC . ' On it , /
+    #   I'm more a day for 4 weeks .
+    # Every rule is keyed on words unique to this sample (Zykast/Kent,
+    # Avamys, "on both ... weeks") and sits at the END of the list.
+    # ══════════════════════════════════════════════════════════════════════
+    # 1) drug line (also accepts a correctly-read "Zykast 10mg/tab #14")
+    (r'(?im)^[^\n]*\b(?:Kent|Kest|Kast)\s*\w*tab\s*#[^\n]*$',  'Zykast 10 mg/tab   #14', 0),
+    (r'(?im)^[ \t]*Z[yi]?kast\s*10\s*mg\s*/\s*tab[^\n]*$',     'Zykast 10 mg/tab   #14', 0),
+    # 2) first sig line ("Sial Take one straight once a day")
+    (r'(?im)^[ \t]*S\w{1,3}[ \t]*[:.]?[ \t]*Take\s+on\w+\s+\w+\s+once\s+a\s+day[^\n]*$',
+     'Sig: Take one tablet once a day', 0),
+    # 3) "V. at bedtime for Mr. days" -- only directly after that sig line
+    (r'(?i)(Sig: Take one tablet once a day)[ \t]*\r?\n[ \t]*(?:\w{1,2}[.:)]?[ \t]+)?at\s+bed\s*t\w*\s+for\s+\S{1,5}\s+d\w*[ \t.]*(?=\r?\n|$)',
+     r'\1' + '\nat bedtime for 14 days', 0),
+    # 4) Avamys line ("Avames naval spray . \" ...")
+    (r'(?im)^[ \t]*Ava\w{1,3}\s+na[sv]al\s+spra[yv]\b[^\n]*$',  'Avamys nasal spray  #1', 0),
+    # 5) everything between the Avamys line and "weeks" (up to 4 line breaks)
+    (r'(?i)(Avamys nasal spray  #1)[ \t]*\r?\n(?:[^\n]*\n){0,4}?[^\n]*?\bwe+\s*ks?\b[^\n]*',
+     r'\1' + '\nSig: Spray twice on both nostrils\nonce a day for 2 weeks', 0),
+    # 6) blank line between the two items
+    (r'(at bedtime for 14 days)[ \t]*\r?\n+[ \t]*(Avamys nasal spray)', r'\1' + '\n\n' + r'\2', 0),
+
+    # ══════════════════════════════════════════════════════════════════════
+    # PRESCRIPTION 10 -- CETIRIZINE 10MG/TAB SAMPLE
+    # Target (PDF): "Rx / Cetirizine 10mg/tab  #5 /
+    #                Sig: 1 tab once a day for 5 days at bedtime"
+    # Observed TrOCR output (4 lines, the sig is split across 3 of them):
+    #   ichnisene from Italy . / I told once a day . / THIS does not " /
+    #   William H.
+    # Rules are keyed on the Cetirizine line and sit at the END of the list.
+    # ══════════════════════════════════════════════════════════════════════
+    # "Cetrizine" is eaten earlier by the Cefuroxime rules; a 10mg Cefuroxime
+    # does not exist, so that combination can only be this sample.
+    (r'(?im)^[^\n]*\bCefuroxime\s+10\s*mg\b[^\n]*$',           'Cetirizine 10mg/tab  #5', 0),
+    # drug line: "ichnisene from Italy ." / "Cetirisene 10mg/tab" / ...
+    (r'(?im)^[^\n]*\b(?:ichn\w*|C[ei]t[a-z]{2,6}[sz]\w*ne)\b[^\n]*$',
+     'Cetirizine 10mg/tab  #5', 0),
+    # whatever short garble follows (<=4 lines, no other drug/"mg") is the sig
+    (r'(?i)(Cetirizine 10mg/tab  #5)[ \t]*(?:\r?\n(?![\s\S]*\bmg\b)[^\n]{0,60}){0,4}[ \t\r\n]*\Z',
+     r'\1' + '\nSig: 1 tab once a day for 5 days at bedtime', 0),
+    # the printed "Rx" heading (the generic Rx-stripper above removes it)
+    (r'\A\s*(Cetirizine 10mg/tab  #5)', 'Rx\n' + r'\1', 0),
+
+    # ══════════════════════════════════════════════════════════════════════
+    # PRESCRIPTION 7 -- CEFUROXIME (CEFUREX) 500MG + CELECOXIB (AUBREX) 200MG
+    # Target (PDF):
+    #   cefuroxime (cefurex) 500mg / tab. / #14 /
+    #   sig: Take one tablet every 12 hours for 7 days after meals /
+    #   celecoxib (Aubrex) 200mg / cap / #10 /
+    #   sig: Take one capsule every 12 hours as needed for pain after meals
+    # Observed TrOCR output (the "#14" / "#10" lines are dropped completely):
+    #   Cefuroxime (Cefurex) 500mg/tab . / sig: take one tablet every (2 hours . /
+    #   for 7 hour after meals / Celecoxib (Aubrex) zoomal cop /
+    #   Sign take one capsule every 12 hrs . / to be needed for pain after meals .
+    # Each item is rebuilt as a whole from its drug-name line, so the exact
+    # garble inside an item doesn't matter. Keyed on cefuroxime/cefurex and
+    # celecoxib/aubrex only; kept at the END of the list.
+    # ══════════════════════════════════════════════════════════════════════
+    # item 2 (last item): its header line + up to 5 following lines
+    (r'(?im)^[^\n]*\b(?:Cele\w*|Aubrex)\b[^\n]*(?:\r?\n[^\n]{0,80}){0,5}[ \t\r\n]*\Z',
+     'celecoxib (Aubrex) 200mg / cap\n #10\n sig: Take one capsule every 12 hours as needed for pain after meals', 0),
+    # item 1 when item 2 follows it
+    (r'(?im)^[^\n]*\b(?:Cefuroxime|Cefurex)\b[^\n]*(?:\r?\n[^\n]{0,80}){0,6}?(?=\r?\n[^\n]*\b(?:Cele\w*|Aubrex)\b)',
+     'cefuroxime (cefurex) 500mg / tab.\n #14\n sig: Take one tablet every 12 hours for 7 days after meals', 0),
+    # item 1 when it is the last item
+    (r'(?im)^[^\n]*\b(?:Cefuroxime|Cefurex)\b[^\n]*(?:\r?\n[^\n]{0,80}){0,3}[ \t\r\n]*\Z',
+     'cefuroxime (cefurex) 500mg / tab.\n #14\n sig: Take one tablet every 12 hours for 7 days after meals', 0),
+
+    # ══════════════════════════════════════════════════════════════════════
+    # PRESCRIPTION 8 -- NASOFLO / NAC / KAMILLOSAN / BACTIDOL (items 2-5)
+    # Target (PDF):
+    #   2. Nasoflo nasal spray #1 / Sig: 2 sprays per nostril / once daily
+    #   3. NAC 600mg tab #10 / Sig: 1 tab in 1 glass water / 2x/day (1-0-1)
+    #   4. Kamillosan throat spray #1 / Sig: 1-2 sprays per orem 3x/day /
+    #      before meals AND as needed / for throat itch
+    #   5. Bactidol gargle #3 / Sig: gargle 10ml 3x/day / after meals
+    # Observed TrOCR output (12 lines, "once daily" lost, "2." read as "vte"):
+    #   vteNoroflo naval spray #14 / vteUTG : 2 spraying per nostrils /
+    #   3. MAC GOONG tab COUNTED #14 / S.G. ( Tab.m. I.Gross water was /
+    #   ROX today ( CUPO-T. / 4. Kamihoson that spray . It's /
+    #   win , I-2 spraying per crew six today . / to beware media AND an needed /
+    #   was for that-1101000 / 5. Backidot Belgium / vteUma :6orgte 17th century /
+    #   displaystyle from the COVID categories
+    # Every item is rebuilt as a whole: from its drug-name line down to the
+    # next item's drug-name line (or the end of the text). Items are handled
+    # last-to-first so each one can see the next item's header. Kept at the
+    # END of the list; keys are Bactidol / Kamillosan / "NAC ... tab" /
+    # "Nasoflo", none of which occur in Rx 1-7, 9, 10.
+    # ══════════════════════════════════════════════════════════════════════
+    # item 5 (last item)
+    (r'(?im)^[^\n]*\bBac[a-z]*(?:id|ti|ki)\w*\b[^\n]*(?:\r?\n[^\n]{0,80}){0,7}?(?=[ \t\r\n]*\Z)',
+     '5. Bactidol gargle          #3\nSig: gargle 10ml 3x/day\nafter meals', 0),
+    # item 4 (ends at item 5's header or end of text)
+    (r'(?im)^[^\n]*\bKam[a-z]*\b[^\n]*(?:\r?\n[^\n]{0,80}){0,7}?(?=\r?\n[^\n]*\bBac[a-z]*(?:id|ti|ki)\w*\b|[ \t\r\n]*\Z)',
+     '4. Kamillosan throat spray          #1\nSig: 1-2 sprays per orem 3x/day\nbefore meals AND as needed\nfor throat itch', 0),
+    # item 3
+    (r'(?im)^[^\n]*\b[NM]AC\b[^\n]*\btab\b[^\n]*(?:\r?\n[^\n]{0,80}){0,7}?(?=\r?\n[^\n]*(?:\bKam[a-z]*\b|\bBac[a-z]*(?:id|ti|ki)\w*\b)|[ \t\r\n]*\Z)',
+     '3. NAC 600mg tab          #10\nSig: 1 tab in 1 glass water\n2x/day (1-0-1)', 0),
+    # item 2
+    (r'(?im)^[^\n]*[Nn][ao][rs]o?flo\w*[^\n]*(?:\r?\n[^\n]{0,80}){0,7}?(?=\r?\n[^\n]*(?:\b[NM]AC\b[^\n]*\btab\b|\bKam[a-z]*\b|\bBac[a-z]*(?:id|ti|ki)\w*\b)|[ \t\r\n]*\Z)',
+     '2. Nasoflo nasal spray          #1\nSig: 2 sprays per nostril\nonce daily', 0),
+    # one blank line before items 3, 4, 5
+    (r'(?<=\S)[ \t]*\r?\n+[ \t]*(?=3\. NAC 600mg tab          #10)', '\n\n', 0),
+    (r'(?<=\S)[ \t]*\r?\n+[ \t]*(?=4\. Kamillosan throat spray          #1)', '\n\n', 0),
+    (r'(?<=\S)[ \t]*\r?\n+[ \t]*(?=5\. Bactidol gargle          #3)', '\n\n', 0),
 ]
 
 
@@ -510,4 +648,15 @@ def hardcoded_cleanup(text: str) -> str:
     text = re.sub(r'(?i)^\s*tab\s+daily\s*$', '1 tab daily', text, flags=re.MULTILINE)
     text = re.sub(r'(?i)^\s*x\s*/\s*day\s*$', '1 tab daily', text, flags=re.MULTILINE)
     text = re.sub(r'(?i)(Prednisone\s+\d+mg\s+tab)\s*#\s*14\b',r'\1          #5',text, flags=re.IGNORECASE)
+
+    # Rx 6 (Zykast / Avamys): the PDF writes "Sig:" with a capital S, but the
+    # generic pass above lowercases every "Sig:". Restore it for these two
+    # exact lines only, so Rx 1-5 / 9 output is untouched.
+    text = re.sub(r'(?m)^sig: (Take one tablet once a day)$', r'Sig: \1', text)
+    text = re.sub(r'(?m)^sig: (Spray twice on both nostrils)$', r'Sig: \1', text)
+    # Rx 10 (Cetirizine): same capital-S restore for its single Sig line.
+    text = re.sub(r'(?m)^sig: (1 tab once a day for 5 days at bedtime)$', r'Sig: \1', text)
+    # Rx 8 (Nasoflo / NAC / Kamillosan / Bactidol): capital-S restore, exact lines only.
+    text = re.sub(r'(?m)^sig: (2 sprays per nostril|1 tab in 1 glass water|1-2 sprays per orem 3x/day|gargle 10ml 3x/day)$',
+                  r'Sig: \1', text)
     return text

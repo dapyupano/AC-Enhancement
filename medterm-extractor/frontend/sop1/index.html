@@ -609,6 +609,7 @@
     </section>
   </div>
 
+  <script src="../history-helper.js"></script>
   <script>
     const SIGMA = Array.from("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,-/%()+:#•—");
     const CHAR_INDEX = new Map(SIGMA.map((c, i) => [c, i]));
@@ -1252,7 +1253,15 @@
         const winner = data.speedup && data.speedup >= 1 ? "ENHANCED" : "ORIGINAL";
         const factor = data.speedup ? (data.speedup >= 1 ? data.speedup : 1 / data.speedup) : null;
 
+        const capNotice = data.iterations_capped
+          ? `Note: iterations were automatically reduced from ${data.requested_iterations.toLocaleString()} ` +
+            `to ${data.iterations.toLocaleString()} because this text is long enough that the full requested ` +
+            `iteration count would have taken a very long time to run (iterations x characters is capped at ` +
+            `${data.max_bench_product.toLocaleString()} to keep this benchmark fast).\n\n`
+          : "";
+
         ui.pyBenchmarkBox.textContent =
+          capNotice +
           `Normalized text: ${data.normalized_text}\n\n` +
           `Original AC\n` +
           `  Build time: ${o.build_time_ms} ms\n` +
@@ -1263,6 +1272,31 @@
           `  Average search: ${e.avg_time_us} us/run\n` +
           `  Failure hops: ${e.failure_hops}\n\n` +
           (factor ? `${winner} is ${factor.toFixed(2)}x faster.` : "");
+
+        if (data.iterations_capped) {
+          ui.benchIterations.value = data.iterations;
+        }
+
+        saveActivityHistory({
+          source: "SOP 1",
+          sourcePage: "../sop1/index.html",
+          mode: "sop1",
+          text,
+          matchCount: state.matchesEnhanced.length,
+          terms: state.matchesEnhanced.map((match) => match.pattern),
+          resultText: ui.pyBenchmarkBox.textContent,
+          visuals: {
+            svgOriginal: ui.svgOriginal.innerHTML,
+            svgEnhanced: ui.svgEnhanced.innerHTML,
+            skipTable: ui.skipTableBox.innerHTML,
+            metaOriginal: ui.metaOriginal.textContent,
+            metaEnhanced: ui.metaEnhanced.textContent,
+            skipMeta: ui.skipMeta.textContent,
+            stepOriginal: ui.stepOriginal.textContent,
+            stepEnhanced: ui.stepEnhanced.textContent,
+            progress: ui.progressFill.style.width,
+          },
+        });
       } catch (err) {
         ui.pyBenchmarkBox.textContent += `\n\nBackend timing unavailable: ${err.message}`;
       } finally {
@@ -1330,6 +1364,23 @@
     ui.skipMeta.textContent = "Build automaton to generate table.";
     ui.skipTableBox.textContent = "No table yet.";
     ui.pyBenchmarkBox.textContent = "Build the automaton to time the actual Python OriginalAC vs EnhancedAC engines on the Flask server.";
+
+    const restoredEntry = consumeActivityHistory("SOP 1");
+    if (restoredEntry) {
+      ui.prescription.value = restoredEntry.text || "";
+      ui.pyBenchmarkBox.textContent = restoredEntry.resultText || "Saved SOP 1 result.";
+      const visuals = restoredEntry.visuals || {};
+      ui.svgOriginal.innerHTML = visuals.svgOriginal || "";
+      ui.svgEnhanced.innerHTML = visuals.svgEnhanced || "";
+      ui.skipTableBox.innerHTML = visuals.skipTable || "No saved skip table.";
+      ui.metaOriginal.textContent = visuals.metaOriginal || "-";
+      ui.metaEnhanced.textContent = visuals.metaEnhanced || "-";
+      ui.skipMeta.textContent = visuals.skipMeta || "Saved from history";
+      ui.stepOriginal.textContent = visuals.stepOriginal || "Saved result restored.";
+      ui.stepEnhanced.textContent = visuals.stepEnhanced || "Saved result restored.";
+      ui.progressFill.style.width = visuals.progress || "100%";
+      ui.status.textContent = "Saved SOP 1 result and visuals restored from history.";
+    }
 
   </script>
 

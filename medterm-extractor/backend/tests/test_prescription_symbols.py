@@ -87,6 +87,63 @@ def test_ocr_typo_is_detected_as_a_fuzzy_match():
     assert any(hit["matched"] == "IMOFLOX" for hit in fuzzy_hits)
 
 
+def test_prescription_instruction_words_are_not_fuzzy_drugs():
+    engine = build_engine()
+
+    hits = engine.search("NASOFLO NASAL SPRAY #1 SIG 2 SPRAYS PER NOSTRIL")
+
+    assert not any(hit.get("matched") == "SUPRAX" for hit in hits)
+
+
+def test_contextual_abbreviations_are_detected_without_roman_text_false_positive():
+    engine = build_engine()
+
+    historical = engine.search("Chapter IV discusses the roman numeral century in old manuscripts")
+    clinical_or = engine.search("Patient transferred to OR for emergency surgical procedure under anesthesia")
+    clinical_ra = engine.search("History of RA, rheumatoid autoimmune disease confirmed by recent lab tests")
+
+    assert not any(hit.get("matched") == "RIOPAN" for hit in historical)
+    assert any(hit["term"] == "OR" for hit in clinical_or)
+    assert any(hit["term"] == "RA" for hit in clinical_ra)
+
+
+def test_supplemental_ambiguous_abbreviations_require_context():
+    engine = build_engine()
+
+    for term in ("IV", "IM", "OR"):
+        assert not any(hit["term"] == term for hit in engine.search(term))
+
+    assert any(hit["term"] == "IV" for hit in engine.search("IV fluid"))
+    assert any(hit["term"] == "IM" for hit in engine.search("IM injection"))
+    assert any(hit["term"] == "OR" for hit in engine.search("OR surgery"))
+    assert any(hit["term"] == "AC" for hit in engine.search("AC"))
+    assert any(hit["term"] == "ET" for hit in engine.search("ET"))
+
+
+def test_clinical_narrative_words_are_not_fuzzy_drugs_or_treatments():
+    engine = build_engine()
+
+    hits = engine.search("Patient placed on RA, oxygen saturation stable via nasal cannula")
+    hits += engine.search("The odds ratio OR reported in the regression analysis, 95 percent CI")
+
+    assert not any(hit.get("matched") == "KLACID" for hit in hits)
+    assert not any(hit.get("matched") == "DIALYSIS" for hit in hits)
+
+
+def test_typo_in_multi_word_term_keeps_the_full_medical_term():
+    engine = build_engine()
+
+    hits = engine.search("METFORMIN HYDROCLORIDE")
+
+    phrase_hits = [hit for hit in hits if hit["match_type"] == "fuzzy"]
+    assert any(
+        hit["matched"] == "METFORMIN HYDROCHLORIDE"
+        and hit["term"] == "METFORMIN HYDROCLORIDE"
+        for hit in phrase_hits
+    )
+    assert not any(hit["term"] == "METFORMIN" for hit in hits)
+
+
 def test_meal_marker_glyphs_become_one_ascii_marker_group():
     engine = build_engine()
 

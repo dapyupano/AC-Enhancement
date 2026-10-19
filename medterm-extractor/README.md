@@ -61,10 +61,16 @@ medterm-extractor/
    > feature. The first OCR request downloads `microsoft/trocr-large-handwritten`
    > from Hugging Face (a few hundred MB) — this requires an internet
    > connection once; afterwards it's cached locally.
-4. Run the server:
-   ```bash
-   python app.py
-   ```
+
+OCR results are also cached locally in `backend/ocr_cache.sqlite3` using the
+SHA-256 hash of each uploaded image. Re-uploading the same image reuses its
+raw OCR result immediately, while the current OCR correction rules still
+run on every request. The cache database is ignored by Git. 4. Run the server:
+
+```bash
+python app.py
+```
+
 5. Open **http://127.0.0.1:5050** in your browser. The Flask app also
    serves the `frontend/` folder directly, so no separate frontend server
    is needed.

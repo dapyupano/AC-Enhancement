@@ -1,51 +1,6 @@
-"""
-ORIGINAL / BASELINE AHO-CORASICK ALGORITHM
-===========================================
-Implements the "Existing Algorithm" exactly as it is presented in the thesis
-(Chapter 1, "Existing Algorithm" pseudocode):
-
-    Input:
-        P = {p1, p2, ..., pn}
-        T = t1...tm
-
-    AC-Build(P):
-        create root q0
-        for each pattern p in P:
-            insert p into trie via goto transitions delta(q, a)
-            mark terminal state with O(q) <- O(q) U {p}
-        ... standard BFS failure-link construction ...
-        return automaton (Q, Sigma, delta, q0, F, f, O)
-
-    AC-Search(T):
-        state <- q0
-        for each symbol a in T:
-            while delta(state, a) undefined and state != q0:
-                state <- f(state)
-            if delta(state, a) defined:
-                state <- delta(state, a)
-            else:
-                state <- q0
-            if O(state) != empty:
-                report all patterns in O(state) ending at current index
-
-This module intentionally implements NOTHING beyond the above:
-    - No precomputed skip table (Objective 1 is an enhancement).
-    - No two-pass BFS memory layout (Objective 2 is an enhancement).
-    - No tiered hot/cold transition storage (Objective 3 is an enhancement).
-    - No context-aware validation, no priority-weighted scoring,
-      no abbreviation-meaning lookup, no fuzzy matching.
-
-Matching is exact-string only, case-sensitive after a simple uppercase pass,
-identical to how the thesis illustrates the baseline automaton
-(patterns like {cora, ora, ras, or, sick, ick, corasick}).
-"""
-
 from collections import deque
 
-
 class TrieNode:
-    """A single trie state q. Uses a plain dict for goto transitions delta(q, a),
-    exactly like the classical construction -- no hot/cold storage tiers."""
 
     __slots__ = ("goto", "fail", "output")
 
@@ -59,12 +14,6 @@ class OriginalAhoCorasick:
     """Baseline Aho-Corasick automaton. No performance enhancements."""
 
     def __init__(self, patterns):
-        """
-        patterns: iterable of (term, category, meaning) tuples, OR plain strings.
-        Only `term` is used for matching -- category/meaning are stored purely
-        for display purposes and are NOT looked up during search (the original
-        algorithm has no meaning-lookup phase).
-        """
         self.term_lookup = {}   # term -> (category, meaning), display-only
         self._patterns = []
         for p in patterns:
@@ -113,13 +62,6 @@ class OriginalAhoCorasick:
 
     # ---- AC-Search(T) ------------------------------------------------------
     def search(self, text):
-        """
-        Exact multi-pattern search, following failure links one-by-one on
-        every mismatch exactly as in the classical algorithm (no skip table).
-        Returns a list of hits: {term, category, meaning, start, end}
-        in the order they are found, WITHOUT any overlap resolution,
-        scoring, or context filtering (those are enhancements).
-        """
         T = text.upper()
         state = self.root
         hits = []

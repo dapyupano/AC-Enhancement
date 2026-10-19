@@ -1,20 +1,18 @@
 import re
+import unicodedata
 from collections import deque
 
-# Full transition alphabet a NON-tiered automaton must reserve a column for
-# (A-Z, 0-9, space and the symbols the dictionary/normalizer keep). Used only
-# as the "full-row" baseline in storage_metrics(); it matches the SOP 1/3
-# front-end alphabet.
+# Shared storage constants.
+# Full transition alphabet.
 FULL_ALPHABET = tuple("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,-/%()+:#\u2022\u2014")
 
-# One transition cell = one machine word (same 8-byte stride memory_layout.py
-# reports for the BFS node array). Only used for the KB estimate.
+# Used for storage estimates.
 CELL_BYTES = 8
 
 
-# ------------------------- helper: edit distance -------------------------
+# Fuzzy matching helpers.
 def edit_distance(a, b):
-    """Standard Levenshtein distance, used only by Phase 7 (Fuzzy Matching)."""
+    """Return the Levenshtein distance between two strings."""
     n, m = len(a), len(b)
     if n == 0:
         return m
@@ -26,9 +24,9 @@ def edit_distance(a, b):
         for j in range(1, m + 1):
             cost = 0 if a[i - 1] == b[j - 1] else 1
             curr[j] = min(
-                prev[j] + 1,       # deletion
-                curr[j - 1] + 1,   # insertion
-                prev[j - 1] + cost # substitution
+                prev[j] + 1,
+                curr[j - 1] + 1,
+                prev[j - 1] + cost
             )
         prev = curr
     return prev[m]
@@ -42,30 +40,26 @@ def similarity(a, b):
     return 1.0 - (dist / longest)
 
 
-# ------------------------------ trie node ---------------------------------
 class _Node:
+    """Trie node used while building the automaton."""
+
     __slots__ = ("goto", "fail", "output", "bfs_rank")
 
     def __init__(self):
-        self.goto = {}       # temporary construction-time transitions (Phase 1)
+        self.goto = {}
         self.fail = None
         self.output = set()
         self.bfs_rank = -1
 
 
 class EnhancedAhoCorasick:
+    """Aho-Corasick search with validation, scoring, and fuzzy matching."""
+
     def __init__(self, patterns, dictionary_meaning=None,
                  ambiguous_terms=None, negative_context=None,
                  positive_context=None, hot_threshold=4,
                  context_window_k=5, ambiguous_meanings=None, common_words=None):
-        """
-        patterns: iterable of (term, category, meaning) tuples.
-        dictionary_meaning (D): term -> meaning, used ONLY in the
-            "Meaning for abbreviated terms" phase.
-        ambiguous_terms / negative_context / positive_context: sets/dicts
-            used ONLY in the "Context-aware validation" phase.
-        hot_threshold (theta): hot/cold classification cutoff (Objective 3).
-        """
+        """Build an enhanced Aho-Corasick automaton."""
         self.term_category = {}
         self.term_meaning = dict(dictionary_meaning or {})
         self._pattern_list = []
@@ -85,17 +79,15 @@ class EnhancedAhoCorasick:
         self.common_words = common_words or set()
         
 
-        # Populated by ENHANCED_AC_BUILD:
-        self.nodes = []          # flat array of nodes in BFS order (Objective 2)
-        self.skip = []           # skip[state_idx][char] -> next_state_idx (Objective 1)
-        self.store_kind = []     # "hot" | "cold" per state index (Objective 3)
+        self.nodes = []
+        self.skip = []
+        self.store_kind = []
         self.q0 = 0
 
         self._build(self._pattern_list)
 
-    # ===================== ENHANCED_AC_BUILD(P) ============================
     def _build(self, P):
-        # ---- Phase 1: standard trie construction ----
+        # Build the trie.
         root = _Node()
         for p in P:
             node = root
@@ -105,8 +97,7 @@ class EnhancedAhoCorasick:
                 node = node.goto[ch]
             node.output.add(p)
 
-        # ---- Phase 2 (Objective 2): Two-Pass BFS memory layout ----
-        # Pass 1: assign BFS rank to every node, build bfs_order (flat array)
+        # Assign BFS ranks for compact storage. obj 2
         bfs_order = []
         queue = deque([root])
         root.bfs_rank = 0
@@ -115,19 +106,16 @@ class EnhancedAhoCorasick:
             v = queue.popleft()
             v.bfs_rank = len(bfs_order)
             bfs_order.append(v)
-            # sorted char order -> deterministic, prefix-adjacent layout
             for ch in sorted(v.goto.keys()):
                 child = v.goto[ch]
                 if id(child) not in visited_ids:
                     visited_ids.add(id(child))
                     queue.append(child)
 
-        # Pass 2: remap all child pointers to BFS ranks (contiguous indices)
-        # self.nodes[i] is the node with bfs_rank == i
         self.nodes = bfs_order
-        self.q0 = root.bfs_rank  # == 0
+        self.q0 = root.bfs_rank
 
-        # ---- Phase 3 (Objective 3): Tiered Hot/Cold classification ----
+        # Classify states by transition count. obj 3
         n = len(self.nodes)
         self.store_kind = ["cold"] * n
         for v in self.nodes:
@@ -135,13 +123,8 @@ class EnhancedAhoCorasick:
                 self.store_kind[v.bfs_rank] = "hot"
             else:
                 self.store_kind[v.bfs_rank] = "cold"
-            # (hot states would be backed by a flat array over the whole
-            #  alphabet and cold states by a hash map; in this reference
-            #  implementation both are represented as dicts for portability,
-            #  but the classification itself -- the thing being measured --
-            #  is computed and stored exactly as specified.)
 
-        # ---- Phase 4: failure links (standard AC BFS on compacted nodes) ----
+        # Build failure links for fallback matching.
         queue = deque()
         for ch, child in root.goto.items():
             child.fail = root
@@ -158,8 +141,7 @@ class EnhancedAhoCorasick:
                 queue.append(u)
         root.fail = root
 
-        # ---- Phase 5 (Objective 1): precompute Skip Table ----
-        # skip[state_rank][char] = destination_rank, resolved ONCE at build time.
+        # Precompute skip transitions for constant-time scanning. obj 1 
         self.skip = [dict() for _ in range(n)]
         alphabet = set()
         for v in self.nodes:
@@ -169,9 +151,8 @@ class EnhancedAhoCorasick:
             s_rank = v.bfs_rank
             for a in alphabet:
                 if a in v.goto:
-                    self.skip[s_rank][a] = v.goto[a].bfs_rank  # fast path
+                    self.skip[s_rank][a] = v.goto[a].bfs_rank
                 else:
-                    # resolve failure chain NOW, once, at build time
                     x = v.fail if v is not root else root
                     while x is not root and a not in x.goto:
                         x = x.fail
@@ -180,9 +161,7 @@ class EnhancedAhoCorasick:
                     else:
                         self.skip[s_rank][a] = root.bfs_rank
 
-        # Materialize the tiered transition representation. Hot states use a
-        # dense array for constant-time indexed access; cold states retain a
-        # sparse map to avoid allocating mostly-empty rows.
+        # Store hot states densely and cold states sparsely.
         self._alphabet = tuple(sorted(alphabet))
         self._alphabet_index = {a: i for i, a in enumerate(self._alphabet)}
         self._ascii_index = [-1] * 128
@@ -198,13 +177,7 @@ class EnhancedAhoCorasick:
                     dense[self._alphabet_index[char]] = target
                 self.skip[state] = dense
             else:
-                # Cold rows are genuinely sparse: keep ONLY the transitions
-                # that differ from q0 (own edges + edges inherited through
-                # the failure chain). A missing key means "go to q0", which
-                # is exactly what search() does with transitions.get(a, q0),
-                # so lookups and match results are unchanged. Storing the
-                # q0 defaults explicitly would make every cold row |Sigma|
-                # wide and defeat the point of tiering.
+                # Missing cold transitions go to q0.
                 self.skip[state] = {
                     char: target
                     for char, target in transitions.items()
@@ -213,38 +186,16 @@ class EnhancedAhoCorasick:
 
         self._root_ref = root
 
-        # Precompute, once at build time, the small subset of patterns that
-        # contain "/" along with their space-normalized form and a compiled
-        # regex -- search() used to rebuild and rescan this per character,
-        # which made it O(n^2). It only ever depends on the pattern list,
-        # so it belongs here, not inside the per-character search loop.
+        # Precompile slash-separated patterns after normalization.
         self._slash_patterns = [
             (p, p.replace("/", " "), re.compile(re.escape(p.replace("/", " "))))
             for p in self._pattern_list
             if "/" in p
         ]
 
-    # ===================== STORAGE METRICS (Objective 3) ====================
     def storage_metrics(self):
-        """Measured transition-storage figures for this automaton.
-
-        Hot rows are counted from self.skip (dense arrays, |Sigma| each).
-        Cold rows are counted from the trie itself (self.nodes[i].goto),
-        i.e. each cold state's own trie edges -- NOT the extra transitions
-        the failure chain would resolve for other characters. That
-        failure-chain resolution is what the skip table (Objective 1)
-        precomputes so lookups stay O(1); it is a separate, derived
-        structure and is not counted as a state's own storage here.
-
-        Cells are transition slots. Two baselines are reported so the
-        saving can be attributed honestly:
-          * full-row baseline  = |S| x |FULL_ALPHABET|  (no tiering, no
-            alphabet restriction -- the textbook |S| x |Sigma| matrix)
-          * same-alphabet baseline = |S| x |Sigma_pattern| (dense rows over
-            only the characters that occur in the patterns). Comparing
-            against this isolates the effect of hot/cold tiering from the
-            effect of simply using a smaller alphabet.
-        """
+        # Report memory usage for the transition tables.
+        """Return transition-storage metrics."""
         n = len(self.nodes)
         sigma = len(self._alphabet)
         full = len(FULL_ALPHABET)
@@ -252,8 +203,8 @@ class EnhancedAhoCorasick:
         hot = [i for i, k in enumerate(self.store_kind) if k == "hot"]
         cold = [i for i, k in enumerate(self.store_kind) if k == "cold"]
 
-        hot_cells = sum(len(self.skip[i]) for i in hot)          # dense: |Sigma| each
-        cold_cells = sum(len(self.nodes[i].goto) for i in cold)  # trie's own edges only
+        hot_cells = sum(len(self.skip[i]) for i in hot)
+        cold_cells = sum(len(self.nodes[i].goto) for i in cold)
         cold_row_sizes = [len(self.nodes[i].goto) for i in cold]
 
         enhanced_total = hot_cells + cold_cells
@@ -287,7 +238,6 @@ class EnhancedAhoCorasick:
             "saved_vs_full_pct": pct(baseline_full - enhanced_total, baseline_full),
             "saved_vs_same_alphabet_cells": baseline_same - enhanced_total,
             "saved_vs_same_alphabet_pct": pct(baseline_same - enhanced_total, baseline_same),
-            # split of the full-row saving into its two causes
             "saving_from_alphabet_restriction_cells": baseline_full - baseline_same,
             "saving_from_tiering_cells": baseline_same - enhanced_total,
             "cell_bytes": CELL_BYTES,
@@ -296,32 +246,31 @@ class EnhancedAhoCorasick:
             "enhanced_kb": kb(enhanced_total),
         }
 
-    # ===================== ENHANCED_AC_SEARCH(T) ============================
     def search(self, text):
-        # ---- Text Normalization ----
-        T = text.upper()
+        # Normalize input before matching.
+        T = unicodedata.normalize("NFC", text.upper())
         T = T.replace("ΜG", " MCG ").replace("µG", " MCG ").replace("μG", " MCG ")
         T = T.replace("Μ", "U").replace("µ", "U").replace("μ", "U")
-        T = T.replace("×", " X ").replace("÷", " / ")
         T = re.sub(r"(?i)\bMCG\b", " MCG ", T)
         T = re.sub(r"(?i)\bUG\b", " MCG ", T)
         T = re.sub(r"(?i)\bIU\b", " IU ", T)
-        # Keep prescription symbols from the dictionary while still removing
-        # punctuation that commonly separates abbreviations (for example,
-        # "B.I.D." -> "B I D").
+        # Normalize OCR macron artifacts.
+        has_separate_macron = "─" in T
+        T = re.sub(r"([A-Z])─", lambda match: f"{match.group(1)}\u0304", T)
+        if has_separate_macron:
+            T = re.sub(r"\bA\b", "Ā", T)
+        # Keep dictionary symbols and abbreviation separators.
         T = re.sub(r"[^\w\s#•—\u0304-]", " ", T)
-        T = re.sub(r"\s+", " ", T).strip()    # normalize_spaces
-        # Restore common frequency shorthand after punctuation stripping so
-        # patterns like "1-1-1", "1/1/1", and "1-0-1" remain intact for exact
-        # dictionary matching instead of being split into separate tokens.
+        T = re.sub(r"\s+", " ", T).strip()
+        # Restore three-part frequency shorthand.
         T = re.sub(r"(?i)\b([01])\s+([01])\s+([01])\b", r"\1-\2-\3", T)
         T = self._expand_common_noise(T)
 
-        # ---- Tokenization ----
+        # Tokenize input for context checks and fuzzy matching.
         tokens, token_spans = self._tokenize(T)
         token_index = self._build_char_to_token_index(T, token_spans)
 
-        # ---- O(1) skip-table scan ----
+        # Find exact candidates with the skip table.
         state = self.q0
         candidates = []
         nodes = self.nodes
@@ -331,10 +280,6 @@ class EnhancedAhoCorasick:
         append_candidate = candidates.append
 
         for i, a in enumerate(T):
-            # Space is a normal alphabet symbol here (some dictionary terms,
-            # e.g. "1 TAB", span a whitespace boundary), so it is routed
-            # through the skip table like any other character rather than
-            # forcing a reset to q0.
             transitions = skip[state]
             if isinstance(transitions, list):
                 code = ord(a)
@@ -350,12 +295,7 @@ class EnhancedAhoCorasick:
                     if start >= 0:
                         append_candidate({"term": p, "start": start, "end": i + 1})
 
-        # Punctuation is normalized to spaces before scanning, so also test
-        # dictionary terms whose slash separator was normalized away.
-        # NOTE: this used to run once PER CHARACTER inside the loop above
-        # (an O(n^2) bug -- the whole text was re-scanned for every slash
-        # pattern at every position). It only needs to run once, over the
-        # whole text, after the single-pass skip-table scan is done.
+        # Match slash patterns after punctuation normalization.
         for pattern, normalized_pattern, compiled in self._slash_patterns:
             for match in compiled.finditer(T):
                 append_candidate({
@@ -364,32 +304,21 @@ class EnhancedAhoCorasick:
                     "end": match.end(),
                 })
 
+        # Normalize symbol candidates such as "#9" and meal markers.
         candidates = self._normalize_symbol_candidates(candidates, T)
 
-        # ---- Context-aware validation ----
+        # Reject invalid boundaries and ambiguous contexts.
         validated = []
         for hit in candidates:
             # Do not treat a short dictionary term embedded in a larger word
             # as an exact medical match (for example, "AC" in "PARACETMOL").
             if not self._boundary_bonus(hit, T):
                 continue
-            term = hit["term"]
-            if term in self.ambiguous_terms:
-                window = self._surrounding_tokens(hit, token_index, tokens, token_spans)
-                neg = self.negative_context.get(term, set())
-                pos = self.positive_context.get(term, set())
-                neg_score = len(window & neg)
-                pos_score = len(window & pos)
-                if neg_score > pos_score:
-                    continue  # negative evidence outweighs clinical evidence -> skip
-                if pos and pos_score == 0:
-                    continue  # no clinical signal nearby -> skip
-                hit["context_valid"] = True
-            else:
-                hit["context_valid"] = True
+            if not self._context_is_valid(hit, token_index, tokens, token_spans):
+                continue
             validated.append(hit)
 
-        # ---- Priority-weighted scoring ----
+        # Score validated exact matches.
         for hit in validated:
             score = 0.0
             score += self._length_bonus(hit["term"])
@@ -398,11 +327,9 @@ class EnhancedAhoCorasick:
             score += self._context_bonus(hit["context_valid"])
             hit["priority_score"] = min(score / 4.0, 1.0)  # normalize to [0,1]
 
-        # Keep all validated hits until supplemental and fuzzy candidates have
-        # been added, then resolve every overlap in one priority-ordered pass.
+        # Add meanings and categories to exact matches.
         output = list(validated)
 
-        # ---- Meaning for abbreviated terms ----
         for hit in output:
             lookup_term = hit["term"]
             if lookup_term.startswith("-"):
@@ -415,30 +342,57 @@ class EnhancedAhoCorasick:
             )
             hit["match_type"] = "exact"
 
-        # ---- Phase 7: Fuzzy Matching over tokens not covered by output ----
-        # A position counts as "covered" if the exact skip-table scan ever
-        # produced a candidate there, even if context validation later
-        # rejected it (e.g. "cold" in "cold compress"). Otherwise fuzzy
-        # matching would immediately re-add a context-rejected exact term
-        # right back in, defeating the point of Context-Aware Validation.
-        # Positions are only left open to fuzzy matching when the exact
-        # scan found nothing there at all (a genuine spelling miss).
+        # Reserve exact-match positions from fuzzy matching.
         covered_positions = set()
         for hit in candidates:
             if not self._boundary_bonus(hit, T):
                 continue
             covered_positions.update(range(hit["start"], hit["end"]))
 
+        # Match misspelled multi-word terms first.
+        phrase_patterns = [
+            pattern for pattern in self._pattern_list
+            if len(pattern.split()) > 1
+        ]
+        for pattern in phrase_patterns:
+            pattern_words = pattern.split()
+            word_count = len(pattern_words)
+            if word_count > len(tokens):
+                continue
+            for idx in range(len(tokens) - word_count + 1):
+                window = tokens[idx:idx + word_count]
+                if any(word.upper() in self.common_words for word in window):
+                    continue
+                distances = [
+                    edit_distance(token.upper(), pattern_word)
+                    for token, pattern_word in zip(window, pattern_words)
+                ]
+                if all(
+                    distance <= 2 and similarity(token.upper(), pattern_word) >= 0.6
+                    for token, pattern_word, distance in zip(window, pattern_words, distances)
+                ) and any(distance > 0 for distance in distances):
+                    start = token_spans[idx][0]
+                    end = token_spans[idx + word_count - 1][1]
+                    phrase_similarity = sum(
+                        similarity(token.upper(), pattern_word)
+                        for token, pattern_word in zip(window, pattern_words)
+                    ) / word_count
+                    output.append({
+                        "term": T[start:end],
+                        "matched": pattern,
+                        "start": start,
+                        "end": end,
+                        "category": self.term_category.get(pattern, ""),
+                        "meaning": self.term_meaning.get(pattern, "—"),
+                        "priority_score": min(round(phrase_similarity + 0.1, 2), 1.0),
+                        "match_type": "fuzzy",
+                    })
+
+        # Match remaining misspelled single tokens.
         for idx, (tok, (tstart, tend)) in enumerate(zip(tokens, token_spans)):
-            # Keep fuzzy correction for genuine OCR misspellings like "moflox" ->
-            # "IMOFLOX", but block common OCR false positives like "CUP" and "MIX"
-            # which were previously being mapped to "CAP" and "MI".
             tok_upper = tok.upper()
             if tok_upper in self.common_words:
                 continue
-            # Avoid rewriting normal 3-letter words like "day" into a valid
-            # abbreviation such as "daw". Real OCR corruption cases like
-            # "moflox" are longer and remain eligible for fuzzy correction.
             if len(tok) < 4:
                 continue
             if any(pos in covered_positions for pos in range(tstart, tend)):
@@ -465,10 +419,7 @@ class EnhancedAhoCorasick:
                     "match_type": "fuzzy",
                 })
 
-        # Some dosage forms appear fused as a numeric token (e.g. "200mg")
-        # and should still contribute the standalone unit abbreviation to the
-        # abbreviations panel ("MG" / "MCG" / "UG" / "ML"). Keep the exact
-        # dosage match as-is while also surfacing the unit abbreviation.
+        # Add units found inside fused dosage tokens.
         unit_hits = []
         for unit_match in re.finditer(r"(?i)(\d+)\s*(mg|mcg|ug|ml|g|tab|tabs|cap|caps)\b", T):
             unit = unit_match.group(2).upper()
@@ -504,8 +455,7 @@ class EnhancedAhoCorasick:
             })
 
         output.extend(unit_hits)
-        # Keep exact standalone abbreviation tokens such as "2X" and "3X"
-        # even when the longer frequency phrase "2X A DAY" also matches.
+        # Keep standalone abbreviations inside longer frequency phrases.
         seen_exact = {(hit["term"], hit["start"], hit["end"]) for hit in output}
         for tok, (tstart, tend) in zip(tokens, token_spans):
             token = tok.upper()
@@ -514,6 +464,9 @@ class EnhancedAhoCorasick:
             if (token, tstart, tend) in seen_exact:
                 continue
             if self.term_category[token] not in {"Abbreviation", "Dosage", "Symbol", "Frequency"}:
+                continue
+            token_hit = {"term": token, "start": tstart, "end": tend}
+            if not self._context_is_valid(token_hit, token_index, tokens, token_spans):
                 continue
             output.append({
                 "term": token,
@@ -525,11 +478,12 @@ class EnhancedAhoCorasick:
                     {"term": token, "start": tstart, "end": tend},
                     token, token_index, tokens, token_spans,
                 ),
-                "context_valid": True,
+                "context_valid": token_hit["context_valid"],
                 "match_type": "exact",
             })
             seen_exact.add((token, tstart, tend))
 
+        # Score supplemental exact matches.
         for hit in output:
             if hit.get("match_type") == "exact" and "priority_score" not in hit:
                 score = 0.0
@@ -539,29 +493,14 @@ class EnhancedAhoCorasick:
                 score += self._context_bonus(hit.get("context_valid", True))
                 hit["priority_score"] = min(score / 4.0, 1.0)
 
-        # ---- Final overlap resolution across all candidate sources ----
-        # `occupied` only ever holds non-overlapping intervals (each accepted
-        # hit is checked against it before being added), so it can be kept
-        # sorted by start and only its neighboring interval(s) need checking,
-        # instead of scanning every previously-accepted interval for every
-        # candidate. The overlap check itself drops from O(k) to O(log k)
-        # per candidate; list.insert still shifts elements (O(k)) so this is
-        # not asymptotically better in the worst case, but it cuts real
-        # comparisons enormously (measured ~13x faster on a 20k-word,
-        # match-dense prescription text -- 19.1s to 1.4s) because the old
-        # code did a full linear `any(...)` scan, with a Python-level
-        # generator, against every prior accepted interval on every hit.
+        # Keep the highest-priority non-overlapping matches.
         import bisect
         output.sort(key=lambda h: (-h["priority_score"], -len(h["term"])))
         resolved = []
-        occupied_starts = []   # kept sorted; parallel to occupied_ends
-        occupied_ends = []     # end of the interval starting at occupied_starts[i]
+        occupied_starts = []
+        occupied_ends = []
         for hit in output:
             pos = bisect.bisect_right(occupied_starts, hit["start"])
-            # Only the neighboring interval(s) can possibly overlap `hit`,
-            # since all occupied intervals are mutually non-overlapping:
-            # the one starting just before `pos` (may extend into hit),
-            # and the one right after `pos` (may start before hit ends).
             overlap = False
             if pos > 0 and occupied_ends[pos - 1] > hit["start"]:
                 overlap = True
@@ -576,20 +515,17 @@ class EnhancedAhoCorasick:
         output.sort(key=lambda h: h["start"])
         return output
 
-    # ---------------------------- helpers ----------------------------------
-    # Dosage-form words that are frequently glued to their preceding count by
-    # OCR noise (e.g. "1tab" -> should read as "1 tab"). Deliberately narrow:
-    # measurement units like "MG"/"ML"/"G" and coded abbreviations like "Q4H"
-    # are legitimately fused in the dictionary and must NOT be split here.
+    # Input normalization helpers.
+    # Dosage words commonly fused with a preceding number by OCR.
     _UNIT_WORDS = ("TABS", "TAB", "CAPS", "CAP", "VIAL", "AMPULE", "TSP", "DROPS", "DROP")
 
     @classmethod
     def _expand_common_noise(cls, T):
-        # "1tab" -> "1 tab", "2caps" -> "2 caps", etc.
         for word in cls._UNIT_WORDS:
             T = re.sub(rf"(\d)({word})\b", r"\1 \2", T)
         return T
 
+    # Token and span helpers.
     @staticmethod
     def _tokenize(T):
         tokens, spans = [], []
@@ -606,6 +542,7 @@ class EnhancedAhoCorasick:
                 index[pos] = ti
         return index
 
+    # Context validation helpers.
     def _surrounding_tokens(self, hit, token_index, tokens, token_spans):
         pos = hit["start"]
         if pos >= len(token_index) or token_index[pos] == -1:
@@ -615,6 +552,23 @@ class EnhancedAhoCorasick:
         lo, hi = max(0, ti - k), min(len(tokens), ti + k + 1)
         return {tokens[i] for i in range(lo, hi) if i != ti}
 
+    def _context_is_valid(self, hit, token_index, tokens, token_spans):
+        """Validate an ambiguous term against nearby tokens."""
+        term = hit["term"]
+        if term not in self.ambiguous_terms:
+            hit["context_valid"] = True
+            return True
+
+        window = self._surrounding_tokens(hit, token_index, tokens, token_spans)
+        neg = self.negative_context.get(term, set())
+        pos = self.positive_context.get(term, set())
+        neg_score = len(window & neg)
+        pos_score = len(window & pos)
+        context_valid = not (neg_score > pos_score or (pos and pos_score == 0))
+        hit["context_valid"] = context_valid
+        return context_valid
+
+    # Symbol and boundary helpers.
     @staticmethod
     def _normalize_symbol_candidates(candidates, T):
         normalized = []
@@ -652,18 +606,21 @@ class EnhancedAhoCorasick:
                 })
         return normalized
 
+    # Match scoring helpers.
     def _length_bonus(self, term):
-        return min(len(term) / 11.0, 1.0)  # longer = more specific
+        return min(len(term) / 11.0, 1.0)
 
     def _boundary_bonus(self, hit, T):
         start, end = hit["start"], hit["end"]
-        # Quantity notation is commonly written as "#9". The dictionary
-        # treats the hash as its own symbol, so a following digit is valid.
+        # Allow percent notation after a number.
+        if hit["term"] == "%" and start > 0 and T[start - 1].isdigit():
+            return 1.0
+        # Allow quantity notation such as "#9".
         if hit["term"].startswith("#") or hit["term"].endswith("#"):
             left_ok = start == 0 or not T[start - 1].isalnum()
             right_ok = end >= len(T) or not T[end].isalnum()
             return 1.0 if (left_ok or hit["term"].endswith("#")) and (right_ok or hit["term"].startswith("#")) else 0.0
-        
+
         left_ok = start == 0 or not T[start - 1].isalnum()
         right_ok = end >= len(T) or not T[end].isalnum()
         return 1.0 if (left_ok and right_ok) else 0.0
@@ -679,14 +636,8 @@ class EnhancedAhoCorasick:
         tokens, token_spans = self._tokenize(T)
         token_index = self._build_char_to_token_index(T, token_spans)
         term = hit["term"].upper()
-        context_valid = True
-        if term in self.ambiguous_terms:
-            window = self._surrounding_tokens(hit, token_index, tokens, token_spans)
-            neg = self.negative_context.get(term, set())
-            pos = self.positive_context.get(term, set())
-            neg_score = len(window & neg)
-            pos_score = len(window & pos)
-            context_valid = not (neg_score > pos_score or (pos and pos_score == 0))
+        hit = {**hit, "term": term}
+        context_valid = self._context_is_valid(hit, token_index, tokens, token_spans)
 
         score = 0.0
         score += self._length_bonus(term)
@@ -709,6 +660,7 @@ class EnhancedAhoCorasick:
 
 
 
+# Dictionary loading.
 def load_dictionary(csv_path):
     """Loads patterns and abbreviation-meaning dictionary D from the CSV."""
     import csv

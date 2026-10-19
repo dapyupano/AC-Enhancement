@@ -84,6 +84,7 @@
     <input id="iterations" type="number" min="100" step="100" value="50000" />
   </div>
 </div></section><div class="progress"><span id="bar"></span></div><div class="cmp-layout"><section class="panels"><article class="panel"><div class="head">Original: full alphabet <span class="meta" id="ometa">-</span></div><div class="step" id="ostep">Waiting...</div><div class="canvas"><svg id="osvg"></svg></div></article><article class="panel"><div class="head">Enhanced: hot/cold tiers <span class="meta" id="emeta">-</span></div><div class="step" id="estep">Waiting...</div><div class="canvas"><svg id="esvg"></svg></div></article></section><aside class="side"><section class="status" id="status">Waiting for prescription input.</section><section class="bench-wrap"><div class="bench-title">Comparative Result</div><div class="bench-box" id="result">Build the simulation to compare transition storage.</div></section><section class="bench-wrap"><div class="bench-title">Storage Legend</div><div class="bench-box"><span class="swatch" style="background:#3978a8"></span>Full alphabet / dense<br><span class="swatch" style="background:#176b63"></span>Hot state<br><span class="swatch" style="background:#c65f3d"></span>Cold sparse state</div></section></aside></div><section class="tablewrap"><h2>Detected Patterns and Storage Summary</h2><div class="tablebox"><table><thead><tr><th>State</th><th>Original cells</th><th>Enhanced storage</th><th>Tier</th></tr></thead><tbody id="storage"></tbody></table></div></section></div>
+<script src="../history-helper.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 document.querySelector('.sub').textContent = 'Upload or type a prescription, review the extracted search text and all matched patterns, then watch both automata traverse it.';
@@ -440,14 +441,14 @@ function render() {
       box('Enhanced Result', [
         line(`Enhanced hot storage: ${m.hotStates} hot states × ${m.alphabetSize} unique characters = ${m.hotDenseStorage} cells`),
         line(`Enhanced cold sparse storage: Σ cold d(v) = ${m.coldSparseStorage} cells`),
-        line(`Enhanced tiered formula: Σ hot |Σ| + Σ cold d(v) = ${m.hotDenseStorage} + ${m.coldSparseStorage} = ${m.enhancedStorage} cells`),
+        line(`Enhanced tiered formula: Σ hot |Σ| + Σ cold d(v) = ${m.hotDenseStorage} + ${m.coldSparseStorage} = ${m.enhancedStorage} cells (${kb(m.enhancedKb)} KB)`),
         line(`Hot states: ${m.hotStates}, cold states: ${m.coldStates}`)
       ]) +
       box('Memory Saved', [
         line(`<strong>Precomputed skip table optimization:</strong>`),
         line(`Alphabet restriction → ${m.originalStorage} − ${m.denseSameAlphabet} = ${m.originalStorage - m.denseSameAlphabet} cells → ${m.originalStorage - m.denseSameAlphabet} / ${m.originalStorage} = ${f1(m.savingFromAlphabetPercentOfTotal)}%`),
         line(`Hot/cold tiering (same-alphabet − enhanced total) → ${m.denseSameAlphabet} − ${m.enhancedStorage} = ${m.savedVsSameAlphabet} cells → ${m.savedVsSameAlphabet} / ${m.originalStorage} = ${f1(m.savingFromTieringPercentOfTotal)}%`),
-        line(`<strong>Memory saved: ${m.saved.toFixed(0)} cells (${f1(m.savedPercent)}%)</strong>`),
+        line(`<strong>Memory saved: ${m.saved.toFixed(0)} cells (${f1(m.savedPercent)}%)</strong> or (${kb(cellsToKb(m.saved))} KB saved)`),
         `<div style="margin-top:.6rem;border-top:1px solid #d9cdbb;padding-top:.5rem">Original full rows <span style="display:inline-block;width:${baselineWidth}%;height:9px;background:#3978a8;border-radius:3px"></span> ${m.originalStorage}</div>`,
         `<div>Enhanced tiers <span style="display:inline-block;width:${enhancedWidth}%;height:9px;background:#176b63;border-radius:3px"></span> ${m.enhancedStorage}</div>`
       ], true) +
@@ -516,6 +517,25 @@ $('build').onclick = async () => {
     $('status').textContent = 'Hot/cold transition storage comparison ready. Dense rows are kept for frequently used states; sparse rows avoid full-alphabet allocation.';
     render();
     play();
+    saveActivityHistory({
+      source: 'SOP 3',
+      sourcePage: '../sop3/index.html',
+      mode: 'sop3',
+      text,
+      matchCount: enhancedPatterns.length,
+      terms: enhancedPatterns,
+      resultHtml: $('result').innerHTML,
+      visuals: {
+        originalSvg: $('osvg').innerHTML,
+        enhancedSvg: $('esvg').innerHTML,
+        storage: $('storage').innerHTML,
+        originalStep: $('ostep').textContent,
+        enhancedStep: $('estep').textContent,
+        originalMeta: $('ometa').textContent,
+        enhancedMeta: $('emeta').textContent,
+        progress: $('bar').style.width,
+      }
+    });
   } catch (err) {
     $('status').textContent = err.message;
   }
@@ -594,6 +614,22 @@ $('reset').onclick = () => {
   $('play').textContent = 'Play';
   render();
 };
+
+const restoredEntry = consumeActivityHistory('SOP 3');
+if (restoredEntry) {
+  $('prescription').value = restoredEntry.text || '';
+  $('result').innerHTML = restoredEntry.resultHtml || 'Saved SOP 3 result.';
+  const visuals = restoredEntry.visuals || {};
+  $('osvg').innerHTML = visuals.originalSvg || '';
+  $('esvg').innerHTML = visuals.enhancedSvg || '';
+  $('storage').innerHTML = visuals.storage || '';
+  $('ostep').textContent = visuals.originalStep || 'Saved result restored.';
+  $('estep').textContent = visuals.enhancedStep || 'Saved result restored.';
+  $('ometa').textContent = visuals.originalMeta || '-';
+  $('emeta').textContent = visuals.enhancedMeta || '-';
+  $('bar').style.width = visuals.progress || '100%';
+  $('status').textContent = 'Saved SOP 3 result and visuals restored from history.';
+}
 </script>
 </div>
 </div>

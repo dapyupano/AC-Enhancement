@@ -54,6 +54,23 @@
     padding: 16px 18px;
     margin-bottom: 12px;
   }
+  .history-item.clickable { cursor: pointer; transition: border-color 120ms ease, box-shadow 120ms ease; }
+  .history-item.clickable:hover, .history-item.clickable:focus-visible {
+    border-color: var(--blue);
+    box-shadow: 0 4px 14px rgba(35, 74, 111, 0.12);
+    outline: none;
+  }
+  .history-delete {
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--danger);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .history-delete:hover { background: #fdecec; }
   .history-item-head {
     display: flex;
     align-items: center;
@@ -173,7 +190,12 @@
 
     function loadHistory() {
       try {
-        return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+        return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]").map((entry, index) => ({
+          ...entry,
+          id: entry.id || `legacy-${index}-${entry.timestamp || "entry"}`,
+          source: entry.source || "main",
+          sourcePage: entry.sourcePage || "../index.html",
+        }));
       } catch {
         return [];
       }
@@ -203,19 +225,26 @@
 
       listEl.innerHTML = entries.map((entry) => {
         const isEnhanced = entry.mode === "enhanced";
+        const badgeLabel = entry.source && entry.source !== "main"
+          ? entry.source
+          : (isEnhanced ? "Enhanced" : "Original");
         const terms = (entry.terms || []).slice(0, 20);
         const termsHtml = terms.length
           ? `<div class="history-terms">${terms.map((t) => `<span class="history-term-pill">${escapeHtml(t)}</span>`).join("")}</div>`
           : `<div class="history-terms"><span class="history-term-pill">No terms matched</span></div>`;
 
+        const canOpen = Boolean(entry.id && entry.sourcePage);
         return `
-          <div class="history-item">
+          <div class="history-item${canOpen ? " clickable" : ""}"${canOpen ? ` data-history-id="${escapeHtml(entry.id)}" data-source-page="${escapeHtml(entry.sourcePage)}" tabindex="0" role="link"` : ""}>
             <div class="history-item-head">
               <div>
-                <span class="history-badge ${isEnhanced ? "enhanced" : ""}">${isEnhanced ? "Enhanced" : "Original"}</span>
+                <span class="history-badge ${isEnhanced ? "enhanced" : ""}">${escapeHtml(badgeLabel)}</span>
                 <span class="history-count">${entry.matchCount ?? terms.length} term(s) matched</span>
               </div>
-              <span class="history-time">${formatTime(entry.timestamp)}</span>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span class="history-time">${formatTime(entry.timestamp)}</span>
+                <button class="history-delete" type="button" data-delete-id="${escapeHtml(entry.id)}" title="Delete this activity">Delete</button>
+              </div>
             </div>
             <p class="history-text">${escapeHtml(entry.text || "").slice(0, 400)}</p>
             ${termsHtml}
@@ -223,6 +252,39 @@
         `;
       }).join("");
     }
+
+    function openHistoryEntry(item) {
+      const id = item.dataset.historyId;
+      if (!id) return;
+      sessionStorage.setItem("medtermExtractorHistoryRestore", id);
+      window.location.href = item.dataset.sourcePage;
+    }
+
+    function deleteHistoryEntry(id) {
+      const entries = loadHistory().filter((entry) => entry.id !== id);
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(entries));
+      render();
+    }
+
+    listEl.addEventListener("click", (event) => {
+      const deleteButton = event.target.closest(".history-delete");
+      if (deleteButton) {
+        event.stopPropagation();
+        deleteHistoryEntry(deleteButton.dataset.deleteId);
+        return;
+      }
+      const item = event.target.closest(".history-item.clickable");
+      if (item) openHistoryEntry(item);
+    });
+
+    listEl.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      const item = event.target.closest(".history-item.clickable");
+      if (item) {
+        event.preventDefault();
+        openHistoryEntry(item);
+      }
+    });
 
     clearBtn.addEventListener("click", () => {
       if (confirm("Clear all scan history? This cannot be undone.")) {

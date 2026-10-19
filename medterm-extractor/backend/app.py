@@ -19,6 +19,7 @@ Then open http://127.0.0.1:5000 in a browser.
 
 import os
 import re
+from ocr_cache import OCRCache
 from flask import Flask, request, jsonify, send_from_directory
 
 from algorithms.original_aho_corasick import OriginalAhoCorasick, load_patterns_from_csv
@@ -29,6 +30,7 @@ from data.context_data import (
     COMMON_ENGLISH_WORDS,
 )
 from data.ocr_corrections import apply_ocr_corrections, hardcoded_cleanup
+from data.drug_indications import DRUG_INDICATIONS
 from ac_compare import (
     OriginalAC as BenchOriginalAC,
     EnhancedAC as BenchEnhancedAC,
@@ -40,6 +42,8 @@ from memory_layout import get_run_memory_layout
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_PATH = os.path.join(BASE_DIR, "data", "medical_dictionary.csv")
 FRONTEND_DIR = os.path.join(os.path.dirname(BASE_DIR), "frontend")
+OCR_CACHE_PATH = os.path.join(BASE_DIR, "ocr_cache.sqlite3")
+ocr_cache = OCRCache(OCR_CACHE_PATH)
 
 app = Flask(__name__, static_folder=FRONTEND_DIR, static_url_path="")
 
@@ -95,24 +99,28 @@ def ocr():
     if not image_bytes:
         return jsonify({"error": "Uploaded image is empty."}), 400
 
-    try:
-        from ocr.trocr_engine import extract_text
-        raw_text = extract_text(image_bytes)
-    except Exception as exc:  # noqa: BLE001
-        return jsonify({
-            "error": "OCR failed. Make sure TrOCR dependencies (torch, "
-                     "transformers, opencv-python, pillow) are installed and "
-                     "that the model has been downloaded at least once "
-                     "(requires internet access).",
-            "detail": str(exc),
-        }), 500
+    raw_text = ocr_cache.get(image_bytes)
+    cached = raw_text is not None
+    if not cached:
+        try:
+            from ocr.trocr_engine import extract_text
+            raw_text = extract_text(image_bytes)
+            ocr_cache.put(image_bytes, raw_text)
+        except Exception as exc:  # noqa: BLE001
+            return jsonify({
+                "error": "OCR failed. Make sure TrOCR dependencies (torch, "
+                         "transformers, opencv-python, pillow) are installed and "
+                         "that the model has been downloaded at least once "
+                         "(requires internet access).",
+                "detail": str(exc),
+            }), 500
 
     # Clean up common OCR misreads before handing the text back to the
     # frontend / Aho-Corasick search (see data/ocr_corrections.py).
     text = apply_ocr_corrections(raw_text)
     text = hardcoded_cleanup(text)
 
-    return jsonify({"text": text, "raw_text": raw_text})
+    return jsonify({"text": text, "raw_text": raw_text, "cached": cached})
 
 
 @app.route("/api/analyze", methods=["POST"])
@@ -131,6 +139,7 @@ def analyze():
         raw_matches = [{
             "term": h.get("matched", h["term"]),
             "category": h.get("category", ""),
+            "indication": DRUG_INDICATIONS.get(h.get("matched", h["term"]).upper(), "-"),
             "meaning": h.get("meaning", "—"),
             "start": h["start"],
             "end": h["end"],
@@ -161,10 +170,9 @@ def analyze():
                 "score": round(score, 2),
                 "context_valid": context_valid,
             }
-        matches = [match for match in matches if not (
-            match["matched_dictionary_term"].upper() in AMBIGUOUS_TERMS
-            or match["canonical_term"].upper() in AMBIGUOUS_TERMS
-        )]
+        # Enhanced search already applies context validation. Keep ambiguous
+        # terms that passed that validation instead of dropping them again
+        # here (for example, PT in "PT reports abdominal pain and nausea").
         for match in matches:
             baseline_terms.pop(match["matched_dictionary_term"].upper(), None)
             baseline_terms.pop(match["canonical_term"].upper(), None)
@@ -174,6 +182,20 @@ def analyze():
             for match in matches
             if match["start"] < match["end"]
         ]
+
+        # The baseline automaton has no boundary validation, so it can report
+        # short dictionary entries embedded inside an accepted multi-word term
+        # (for example, "ET" inside "METFORMIN"). Those are not meaningful
+        # dropped alternatives and should not be shown in the comparison.
+        baseline_terms = {
+            term: item for term, item in baseline_terms.items()
+            if not any(
+                kept_start <= item["start"]
+                and item["end"] <= kept_end
+                and (item["start"], item["end"]) != (kept_start, kept_end)
+                for kept_start, kept_end in kept_spans
+            )
+        }
 
         def dropped_reason(item):
             span = (item["start"], item["end"])
@@ -203,6 +225,7 @@ def analyze():
         dropped_matches = [{
             "term": item["term"],
             "category": enhanced_engine.term_category.get(item["term"].upper(), ""),
+            "indication": DRUG_INDICATIONS.get(item["term"].upper(), "-"),
             "meaning": "—",
             "start": item["start"],
             "end": item["end"],
@@ -283,6 +306,22 @@ def storage_metrics():
     return jsonify(enhanced_engine.storage_metrics())
 
 
+
+# Safety guard for the /api/benchmark route below.
+#
+# Runtime for that route is driven by the PRODUCT of iterations and text
+# length (each of the 5 trials re-runs the full search `iterations` times,
+# for both engines), not by either value alone:
+#
+#   total_seconds ~= iterations * len(text) * (per-char-per-run constant)
+#
+# On reference hardware that constant is roughly 9.3e-7 seconds, so capping
+# the product at 20,000,000 keeps a single request to well under 20 seconds
+# even in the worst case, leaving a large safety margin under any reasonable
+# timeout (browser, proxy, etc.) even on much slower machines or under load.
+MAX_BENCH_PRODUCT = 20_000_000
+
+
 @app.route("/api/benchmark", methods=["POST"])
 def benchmark():
     """
@@ -291,18 +330,31 @@ def benchmark():
     SOP 1 "Run Python Backend Benchmark" button.
 
     Body: { "text": "...", "iterations": 3000 }
+
+    `iterations` is automatically reduced (never increased) when
+    iterations * len(text) would exceed MAX_BENCH_PRODUCT, so a long
+    prescription doesn't turn a single request into an hours-long run.
+    The response's "requested_iterations" / "iterations" fields tell the
+    caller whether and how much this happened.
     """
     import time as _time
 
     payload = request.get_json(silent=True) or {}
     raw_text = payload.get("text", "")
-    iterations = int(payload.get("iterations", 3000))
-    iterations = max(100, min(iterations, 200000))  # keep requests reasonable
+    requested_iterations = int(payload.get("iterations", 3000))
+    requested_iterations = max(100, min(requested_iterations, 200000))  # keep requests reasonable
 
     if not raw_text.strip():
         return jsonify({"error": "No text provided to benchmark."}), 400
 
     norm_text = bench_normalize_text(raw_text)
+
+    # Auto-scale iterations down for long inputs so iterations * len(text)
+    # stays within MAX_BENCH_PRODUCT. Never scales iterations up.
+    text_len = max(1, len(norm_text))
+    safe_max_iterations = max(100, MAX_BENCH_PRODUCT // text_len)
+    iterations = min(requested_iterations, safe_max_iterations)
+    iterations_capped = iterations < requested_iterations
 
     orig_hits, orig_hops = bench_original.search(norm_text)
     enh_hits = bench_enhanced.search(norm_text)
@@ -348,6 +400,9 @@ def benchmark():
     return jsonify({
         "normalized_text": norm_text,
         "iterations": iterations,
+        "requested_iterations": requested_iterations,
+        "iterations_capped": iterations_capped,
+        "max_bench_product": MAX_BENCH_PRODUCT,
         "pattern_count": len(BENCH_PATTERNS),
         "original": {
             "nodes": len(bench_original.nodes),

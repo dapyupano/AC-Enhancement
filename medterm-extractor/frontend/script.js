@@ -29,6 +29,7 @@ const highlightedText = document.getElementById("highlightedText");
 const termsTableBody = document.getElementById("termsTableBody");
 const confidenceHeader = document.getElementById("confidenceHeader");
 const scoreHeader = document.getElementById("scoreHeader");
+const indicationHeader = document.getElementById("indicationHeader");
 const noTermsMsg = document.getElementById("noTermsMsg");
 const abbrevCol = document.getElementById("abbrevCol");
 const abbrevList = document.getElementById("abbrevList");
@@ -44,8 +45,10 @@ if (savedText && !textInput.value.trim()) textInput.value = savedText;
 
 // ------------------------------ mode toggle --------------------------------
 const CAPTIONS = {
-  original: "Running the <strong>baseline Aho-Corasick</strong> automaton — exact matching only, no context awareness, no fuzzy matching, no abbreviation lookup.",
-  enhanced: "Running the <strong>enhanced Aho-Corasick</strong> pipeline — skip-table search, context-aware validation, priority-weighted scoring, abbreviation meanings, and fuzzy matching.",
+  original:
+    "Running the <strong>baseline Aho-Corasick</strong> automaton — exact matching only, no context awareness, no fuzzy matching, no abbreviation lookup.",
+  enhanced:
+    "Running the <strong>enhanced Aho-Corasick</strong> pipeline — skip-table search, context-aware validation, priority-weighted scoring, abbreviation meanings, and fuzzy matching.",
 };
 
 function setMode(mode) {
@@ -80,13 +83,13 @@ fileInput.addEventListener("change", () => {
   dropzone.addEventListener(evt, (e) => {
     e.preventDefault();
     dropzone.classList.add("dragover");
-  })
+  }),
 );
 ["dragleave", "drop"].forEach((evt) =>
   dropzone.addEventListener(evt, (e) => {
     e.preventDefault();
     dropzone.classList.remove("dragover");
-  })
+  }),
 );
 dropzone.addEventListener("drop", (e) => {
   const file = e.dataTransfer.files[0];
@@ -97,16 +100,20 @@ function handleFile(file) {
   // Check MIME type OR file extension (some browsers don't recognize HEIC MIME type)
   const validMimeTypes = /^image\/(jpeg|png|webp|heic|heif)$/;
   const validExtensions = /\.(jpg|jpeg|png|webp|heic|heif)$/i;
-  
+
   if (!validMimeTypes.test(file.type) && !validExtensions.test(file.name)) {
-    showError("Unsupported file type. Please upload a JPG, PNG, WEBP, or HEIC image.");
+    showError(
+      "Unsupported file type. Please upload a JPG, PNG, WEBP, or HEIC image.",
+    );
     return;
   }
   state.selectedFile = file;
   scanBtn.disabled = false;
 
   // Browsers can't render HEIC/HEIF natively, so skip preview for those formats
-  const isHeic = /\.(heic|heif)$/i.test(file.name) || file.type.match(/^image\/(heic|heif)$/);
+  const isHeic =
+    /\.(heic|heif)$/i.test(file.name) ||
+    file.type.match(/^image\/(heic|heif)$/);
   if (isHeic) {
     previewImg.hidden = true;
     dropzoneTitle.textContent = file.name;
@@ -132,11 +139,15 @@ scanBtn.addEventListener("click", async () => {
   formData.append("image", state.selectedFile);
 
   try {
-    const res = await fetch(`${API_BASE}/api/ocr`, { method: "POST", body: formData });
+    const res = await fetch(`${API_BASE}/api/ocr`, {
+      method: "POST",
+      body: formData,
+    });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "OCR request failed.");
     textInput.value = data.text || "";
-    if (textInput.value.trim()) sessionStorage.setItem(SHARED_TEXT_KEY, textInput.value);
+    if (textInput.value.trim())
+      sessionStorage.setItem(SHARED_TEXT_KEY, textInput.value);
     if (textInput.value.trim()) {
       await runAnalysis();
     }
@@ -182,7 +193,9 @@ async function runAnalysis() {
 // actually detected in this run, then storage is counted per SOP 3's
 // |S| x |Sigma| (baseline) and hot/cold tiered (enhanced) formulas.
 const STATS_THETA = 4;
-const STATS_FULL_ALPHABET = Array.from("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,-/%()+:#•—");
+const STATS_FULL_ALPHABET = Array.from(
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,-/%()+:#•—",
+);
 
 const statCharCount = document.getElementById("statCharCount");
 const statMemory = document.getElementById("statMemory");
@@ -207,27 +220,27 @@ function statsBuildTrie(patterns) {
     const state = queue.shift();
     for (const [char, child] of nodes[state].children) {
       let fallback = failures[state];
-      while (fallback && !nodes[fallback].children.has(char)) fallback = failures[fallback];
+      while (fallback && !nodes[fallback].children.has(char))
+        fallback = failures[fallback];
       const transition = nodes[fallback].children.get(char);
-      failures[child] = transition !== undefined && transition !== child ? transition : 0;
+      failures[child] =
+        transition !== undefined && transition !== child ? transition : 0;
       queue.push(child);
     }
   }
-  nodes.forEach((node, i) => { node.fail = failures[i]; });
+  nodes.forEach((node, i) => {
+    node.fail = failures[i];
+  });
   return nodes;
 }
 
-// Skip-table entries a state really needs: characters whose precomputed
-// target is not q0 (own trie edges + edges inherited through the failure
-// chain). Counting only trie edges under-reports cold storage.
-function statsSkipRowSize(nodes, node, alphabet) {
-  let count = 0;
-  for (const a of alphabet) {
-    let s = node.id;
-    while (s !== 0 && !nodes[s].children.has(a)) s = nodes[s].fail;
-    if (nodes[s].children.has(a)) count++;
-  }
-  return count;
+// Cold-row size d(v): the number of trie edges a cold state actually owns.
+// This is the SAME definition SOP 3 uses (coldRowSizes() in sop3/index.html),
+// so the memory shown on the analysis page matches SOP 3 exactly. Transitions
+// a state would inherit through the failure chain are resolved via the failure
+// link and are not counted as this state's own row storage.
+function statsColdRowSize(node) {
+  return node.children.size;
 }
 
 function statsGetAlphabet(trieNodes) {
@@ -240,7 +253,7 @@ function computeMemoryStats(matches) {
       (matches || [])
         .filter((m) => !m.dropped)
         .map((m) => (m.matched_dictionary_term || m.term || "").toUpperCase())
-        .filter(Boolean)
+        .filter(Boolean),
     ),
   ];
 
@@ -254,7 +267,7 @@ function computeMemoryStats(matches) {
   const hotDenseStorage = hotStates * enhancedAlphabetSize;
   const coldSparseStorage = nodes
     .filter((n) => n.children.size < STATS_THETA)
-    .reduce((sum, n) => sum + statsSkipRowSize(nodes, n, enhancedAlphabet), 0);
+    .reduce((sum, n) => sum + statsColdRowSize(n), 0);
   const enhancedStorage = hotDenseStorage + coldSparseStorage;
 
   const saved = originalStorage - enhancedStorage;
@@ -279,6 +292,7 @@ function renderResults(originalText, data) {
   const isEnhanced = data.mode === "enhanced";
   resultModeBadge.textContent = isEnhanced ? "ENHANCED" : "ORIGINAL";
   categoryHeader.hidden = !isEnhanced;
+  indicationHeader.hidden = !isEnhanced;
   confidenceHeader.hidden = !isEnhanced;
   scoreHeader.hidden = !isEnhanced;
   abbrevCol.hidden = !isEnhanced;
@@ -310,7 +324,7 @@ function renderTermsTable(matches, isEnhanced) {
       const separator = document.createElement("tr");
       separator.className = "dropped-separator";
       const separatorCell = document.createElement("td");
-      separatorCell.colSpan = 4;
+      separatorCell.colSpan = 5;
       separatorCell.textContent = "Dropped based on score / context";
       separator.appendChild(separatorCell);
       termsTableBody.appendChild(separator);
@@ -318,7 +332,8 @@ function renderTermsTable(matches, isEnhanced) {
     const tr = document.createElement("tr");
     if (m.dropped) tr.className = "dropped-term";
 
-    const displayTerm = m.matched_dictionary_term || m.term || m.canonical_term || "";
+    const displayTerm =
+      m.matched_dictionary_term || m.term || m.canonical_term || "";
     const termTd = document.createElement("td");
     termTd.className = "mono";
     termTd.textContent = displayTerm;
@@ -328,6 +343,10 @@ function renderTermsTable(matches, isEnhanced) {
       const catTd = document.createElement("td");
       catTd.textContent = m.category || "—";
       tr.appendChild(catTd);
+
+      const indicationTd = document.createElement("td");
+      indicationTd.textContent = m.indication || "-";
+      tr.appendChild(indicationTd);
     }
 
     if (isEnhanced) {
@@ -340,7 +359,9 @@ function renderTermsTable(matches, isEnhanced) {
 
       const scoreTd = document.createElement("td");
       scoreTd.className = "mono";
-      scoreTd.textContent = m.dropped ? `${m.score} (${m.drop_reason})` : m.score;
+      scoreTd.textContent = m.dropped
+        ? `${m.score} (${m.drop_reason})`
+        : m.score;
       tr.appendChild(scoreTd);
     }
 
@@ -369,7 +390,9 @@ saveResultBtn.addEventListener("click", downloadResultPdf);
 function downloadResultPdf() {
   if (!lastResult) return;
   if (!window.jspdf || !window.jspdf.jsPDF) {
-    showError("PDF library failed to load. Check your connection and try again.");
+    showError(
+      "PDF library failed to load. Check your connection and try again.",
+    );
     return;
   }
 
@@ -405,7 +428,11 @@ function downloadResultPdf() {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(110);
-    doc.text(`Mode: ${isEnhanced ? "Enhanced Aho-Corasick" : "Original Aho-Corasick"}`, margin, y);
+    doc.text(
+      `Mode: ${isEnhanced ? "Enhanced Aho-Corasick" : "Original Aho-Corasick"}`,
+      margin,
+      y,
+    );
     y += 12;
     doc.text(`Generated: ${new Date().toLocaleString()}`, margin, y);
     doc.setTextColor(20);
@@ -436,15 +463,21 @@ function downloadResultPdf() {
     y += 6;
 
     const head = isEnhanced
-      ? [["Term", "Category", "Confidence", "Score"]]
+      ? [["Term", "Category", "Indication", "Confidence", "Score"]]
       : [["Term"]];
     const body = matches.length
       ? matches.map((m) =>
           isEnhanced
-            ? [m.term, m.category || "—", m.confidence === "fuzzy" ? "Fuzzy" : "Exact", String(m.score ?? "—")]
-            : [m.term]
+            ? [
+                m.term,
+                m.category || "—",
+                m.indication || "-",
+                m.confidence === "fuzzy" ? "Fuzzy" : "Exact",
+                String(m.score ?? "—"),
+              ]
+            : [m.term],
         )
-      : [isEnhanced ? ["—", "No medical terms matched.", "", ""] : ["—"]];
+      : [isEnhanced ? ["—", "No medical terms matched.", "", "", ""] : ["—"]];
 
     doc.autoTable({
       startY: y + 6,
@@ -481,12 +514,20 @@ function downloadResultPdf() {
     }
 
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    doc.save(`medterm-result-${isEnhanced ? "enhanced" : "original"}-${stamp}.pdf`);
+    doc.save(
+      `medterm-result-${isEnhanced ? "enhanced" : "original"}-${stamp}.pdf`,
+    );
   } catch (err) {
     console.error(err);
     showError("Could not generate the PDF. Please try again.");
   } finally {
-    setBusy(saveResultBtn, saveSpinner, saveBtnLabel, false, "⬇ Save Result (PDF)");
+    setBusy(
+      saveResultBtn,
+      saveSpinner,
+      saveBtnLabel,
+      false,
+      "⬇ Save Result (PDF)",
+    );
   }
 }
 
@@ -542,21 +583,20 @@ const HISTORY_KEY = "medtermExtractorHistory";
 const HISTORY_LIMIT = 50;
 
 function recordHistoryEntry(text, data) {
-  try {
-    const existing = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
-    existing.unshift({
-      timestamp: new Date().toISOString(),
-      mode: data.mode || state.mode,
-      text,
-      matchCount: (data.matches || []).length,
-      terms: (data.matches || []).map((m) => m.term),
-    });
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(existing.slice(0, HISTORY_LIMIT)));
-  } catch (err) {
-    // localStorage may be unavailable (e.g. private browsing) — fail silently
-    console.warn("Could not save history entry:", err);
-  }
+  saveActivityHistory({
+    source: "main",
+    sourcePage: "../index.html",
+    mode: data.mode || state.mode,
+    text,
+    matchCount: (data.matches || []).length,
+    terms: (data.matches || []).map((m) => m.term),
+  });
 }
 
 // init
 setMode("original");
+const restoredEntry = consumeActivityHistory("main");
+if (restoredEntry) {
+  textInput.value = restoredEntry.text || "";
+  setMode(restoredEntry.mode || "original");
+}
