@@ -99,10 +99,17 @@
         <textarea id="textInput" class="text-input"
           placeholder="Type or paste prescription text here, or scan an image…"></textarea>
 
-        <button class="btn btn-primary" id="evaluateBtn">
-          <span class="spinner" id="evalSpinner" hidden></span>
-          <span id="evalBtnLabel">↻ Re-evaluate</span>
-        </button>
+        <div class="text-actions">
+          <button class="btn btn-primary" id="evaluateBtn">
+            <span class="spinner" id="evalSpinner" hidden></span>
+            <span id="evalBtnLabel">↻ Re-evaluate</span>
+          </button>
+          <button class="btn btn-secondary icon-btn" id="saveCacheBtn" hidden
+            type="button" aria-label="Save OCR result" title="Save OCR result">
+            <span class="spinner" id="cacheSaveSpinner" hidden></span>
+            <span id="cacheSaveBtnLabel" aria-hidden="true">↓</span>
+          </button>
+        </div>
       </div>
     </section>
 

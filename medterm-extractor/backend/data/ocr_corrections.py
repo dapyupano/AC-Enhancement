@@ -118,10 +118,6 @@ OCR_CORRECTIONS = [
     (r'(?i)(for fever ≥ 37\.8°C)\s*\r?\n\s*(nothing follows)', r'\1\n\n\2', re.IGNORECASE),
     # ══════════════════════════════════════════════════════════════════════
     # MONTELUKAST 10MG/TAB #14 -- "SIG: 1 TAB AT BEDTIME" SAMPLE
-    # (targets the specific TrOCR misreads this handwritten sample produces:
-    # "Montecourt NO refrats ." / "Cc. I fab at bedte ." for
-    # "Montelukast 10mg/tab #14" / "Sig: 1 tab at bedtime")
-    # ══════════════════════════════════════════════════════════════════════
     (r'(?i)\bMontecourt\b',                     'Montelukast', re.IGNORECASE),
     (r'(?i)\bMontelukast\s+NO\s+refrats\s*\.?',  'Montelukast 10mg/tab          #14', re.IGNORECASE),
     (r'(?i)\bNO\s+refrats\s*\.?',                '10mg/tab          #14',             re.IGNORECASE),
@@ -146,33 +142,13 @@ OCR_CORRECTIONS = [
 
     # ══════════════════════════════════════════════════════════════════════
     # N-ACETYLCYSTEINE / FLUIMUCIL SACHET SAMPLE
-    # (targets the specific TrOCR misreads this handwritten sample produces:
-    # "N-acetyl cysteine 200mg/sachet (Fluimucil) #10 / Sig: 1 sachet mix
-    # with 1/2 cup of water, give 2x a day for 5 days")
-    # ══════════════════════════════════════════════════════════════════════
-
-    # Stray leading '#' TrOCR hallucinates at the start of a line -- only
-    # when NOT followed by a digit, so real quantity markers ("#10",
-    # "#14") elsewhere are never touched.
     (r'(?m)^#\s+(?=[A-Za-z])',                                '',  re.IGNORECASE),
 
     (r'(?i)n-?acetylonctum\s+homofsmeded',      'N-acetyl cysteine 200mg/sachet', re.IGNORECASE),
-    # "Hahnauer D # ATO #14"-style misread of "(Fluimucil) #10" -- TrOCR's
-    # exact garble here varies slightly between runs (extra/missing space,
-    # O/0 confusion), so match loosely from the "Hah(n)-" prefix through
-    # to the trailing "#14" rather than the exact string.
     (r'(?i)Hah?n.*?#\s*14\b',                    '(Fluimucil) #10',                re.IGNORECASE),
     (r'(?i)Crumbit\s+mix\s+will',                'Sig: 1 sachet mix with',        re.IGNORECASE),
     (r'(?i)(200mg/sachet\s*\r?\n)(?!\s*\(Fluimucil\))[^\n]+',
                                                   r'\1(Fluimucil) #10',            re.IGNORECASE),
-    # "1/2 cup of water, give 2x" misreads: sometimes TrOCR gets this line
-    # almost right but glues stray digits onto the front (e.g. "19601/2
-    # cup..."), other times it garbles the whole line ("scha Cup in math ,
-    # Gorelax"). Handle both.
-    # Protect "give 2x a day" from the generic "Nx (a) day" -> "N tab
-    # daily" rule further up the list (that rewording is desired for
-    # other samples but not for this sachet's "give 2x a day for 5 days"
-    # phrasing), then restore it below after the digit-stripping fix.
     (r'(?i)\bgive\s+2\s+tab\s+daily\b',           'give 2x a day', re.IGNORECASE),
     (r'(?i)\b\d{2,6}\s*(?=1/2\s*cup\s+of\s+water)', '',                           re.IGNORECASE),
     (r'(?i)scha\s+Cup\s+in\s+math\s*,\s*Gorelax', '1/2 cup of water, give 2x',    re.IGNORECASE),
@@ -342,10 +318,6 @@ OCR_CORRECTIONS = [
 
 
     # ── Inoflox 200mg tablet #19 / Dolcet sample: alternate garble run ──
-    # e.g. raw TrOCR output: "moflux 200mg today # ( 9." for the Inoflox
-    # line (missing the leading "I", "tablet" misread as "today", and the
-    # quantity "#19" misread as "# ( 9."), and "greaty kit to dry as
-    # member ." for the second Sig line ("Sig: 3x a day as needed").
     (r'(?i)\b200\s*mg\s+today\b',                 '200mg tablet',  re.IGNORECASE),
     (r'#\s*\(\s*9\.?',                            '#19\nSig: 2x a day', re.IGNORECASE),
     (r'(?i)\bgreaty\s+kit\s+to\s+dry\s+as\s+member\s*\.?', 'Sig: 3x a day as needed', re.IGNORECASE),
@@ -433,11 +405,6 @@ OCR_CORRECTIONS = [
 
     # ══════════════════════════════════════════════════════════════════════
     # PRESCRIPTION 9 -- CIPROFLOXACIN 500MG/TAB SAMPLE
-    # Target: "Ciprofloxacin 500mg/tab\ntake 1 tab every 12 hrs  #14 for 7 days"
-    # Observed TrOCR output: "Caproplaxian 500mg/tab .\nI'm a tight sum . In her"
-    # Kept at the END of the list and anchored to the Ciprofloxacin line so
-    # it cannot alter the Rx 1-5 corrections above.
-    # ══════════════════════════════════════════════════════════════════════
     # drug name: "Caproplaxian" / "Capraflaxian" / "Ciproplaxian" ...
     (r'(?i)\bCa?i?pr[oa][a-z]{0,3}l[ao]x[a-z]*\b',                'Ciprofloxacin', 0),
     # stray period after the dose line
@@ -456,18 +423,6 @@ OCR_CORRECTIONS = [
 
     # ══════════════════════════════════════════════════════════════════════
     # PRESCRIPTION 6 -- ZYKAST 10MG/TAB + AVAMYS NASAL SPRAY SAMPLE
-    # Target (PDF):
-    #   Zykast 10 mg/tab   #14 / Sig: Take one tablet once a day /
-    #   at bedtime for 14 days / <blank> / Avamys nasal spray  #1 /
-    #   Sig: Spray twice on both nostrils / once a day for 2 weeks
-    # Observed TrOCR output (7 lines -- the 2nd Sig line is split in two):
-    #   v. Kent Dmaltab # F 14 . / Sial Take one straight once a day /
-    #   V. at bedtime for Mr. days / Avames naval spray . " ... /
-    #   a strong future on both resirris / Six " Spray ( NBC . ' On it , /
-    #   I'm more a day for 4 weeks .
-    # Every rule is keyed on words unique to this sample (Zykast/Kent,
-    # Avamys, "on both ... weeks") and sits at the END of the list.
-    # ══════════════════════════════════════════════════════════════════════
     # 1) drug line (also accepts a correctly-read "Zykast 10mg/tab #14")
     (r'(?im)^[^\n]*\b(?:Kent|Kest|Kast)\s*\w*tab\s*#[^\n]*$',  'Zykast 10 mg/tab   #14', 0),
     (r'(?im)^[ \t]*Z[yi]?kast\s*10\s*mg\s*/\s*tab[^\n]*$',     'Zykast 10 mg/tab   #14', 0),
@@ -487,15 +442,6 @@ OCR_CORRECTIONS = [
 
     # ══════════════════════════════════════════════════════════════════════
     # PRESCRIPTION 10 -- CETIRIZINE 10MG/TAB SAMPLE
-    # Target (PDF): "Rx / Cetirizine 10mg/tab  #5 /
-    #                Sig: 1 tab once a day for 5 days at bedtime"
-    # Observed TrOCR output (4 lines, the sig is split across 3 of them):
-    #   ichnisene from Italy . / I told once a day . / THIS does not " /
-    #   William H.
-    # Rules are keyed on the Cetirizine line and sit at the END of the list.
-    # ══════════════════════════════════════════════════════════════════════
-    # "Cetrizine" is eaten earlier by the Cefuroxime rules; a 10mg Cefuroxime
-    # does not exist, so that combination can only be this sample.
     (r'(?im)^[^\n]*\bCefuroxime\s+10\s*mg\b[^\n]*$',           'Cetirizine 10mg/tab  #5', 0),
     # drug line: "ichnisene from Italy ." / "Cetirisene 10mg/tab" / ...
     (r'(?im)^[^\n]*\b(?:ichn\w*|C[ei]t[a-z]{2,6}[sz]\w*ne)\b[^\n]*$',
@@ -508,18 +454,6 @@ OCR_CORRECTIONS = [
 
     # ══════════════════════════════════════════════════════════════════════
     # PRESCRIPTION 7 -- CEFUROXIME (CEFUREX) 500MG + CELECOXIB (AUBREX) 200MG
-    # Target (PDF):
-    #   cefuroxime (cefurex) 500mg / tab. / #14 /
-    #   sig: Take one tablet every 12 hours for 7 days after meals /
-    #   celecoxib (Aubrex) 200mg / cap / #10 /
-    #   sig: Take one capsule every 12 hours as needed for pain after meals
-    # Observed TrOCR output (the "#14" / "#10" lines are dropped completely):
-    #   Cefuroxime (Cefurex) 500mg/tab . / sig: take one tablet every (2 hours . /
-    #   for 7 hour after meals / Celecoxib (Aubrex) zoomal cop /
-    #   Sign take one capsule every 12 hrs . / to be needed for pain after meals .
-    # Each item is rebuilt as a whole from its drug-name line, so the exact
-    # garble inside an item doesn't matter. Keyed on cefuroxime/cefurex and
-    # celecoxib/aubrex only; kept at the END of the list.
     # ══════════════════════════════════════════════════════════════════════
     # item 2 (last item): its header line + up to 5 following lines
     (r'(?im)^[^\n]*\b(?:Cele\w*|Aubrex)\b[^\n]*(?:\r?\n[^\n]{0,80}){0,5}[ \t\r\n]*\Z',
@@ -533,24 +467,6 @@ OCR_CORRECTIONS = [
 
     # ══════════════════════════════════════════════════════════════════════
     # PRESCRIPTION 8 -- NASOFLO / NAC / KAMILLOSAN / BACTIDOL (items 2-5)
-    # Target (PDF):
-    #   2. Nasoflo nasal spray #1 / Sig: 2 sprays per nostril / once daily
-    #   3. NAC 600mg tab #10 / Sig: 1 tab in 1 glass water / 2x/day (1-0-1)
-    #   4. Kamillosan throat spray #1 / Sig: 1-2 sprays per orem 3x/day /
-    #      before meals AND as needed / for throat itch
-    #   5. Bactidol gargle #3 / Sig: gargle 10ml 3x/day / after meals
-    # Observed TrOCR output (12 lines, "once daily" lost, "2." read as "vte"):
-    #   vteNoroflo naval spray #14 / vteUTG : 2 spraying per nostrils /
-    #   3. MAC GOONG tab COUNTED #14 / S.G. ( Tab.m. I.Gross water was /
-    #   ROX today ( CUPO-T. / 4. Kamihoson that spray . It's /
-    #   win , I-2 spraying per crew six today . / to beware media AND an needed /
-    #   was for that-1101000 / 5. Backidot Belgium / vteUma :6orgte 17th century /
-    #   displaystyle from the COVID categories
-    # Every item is rebuilt as a whole: from its drug-name line down to the
-    # next item's drug-name line (or the end of the text). Items are handled
-    # last-to-first so each one can see the next item's header. Kept at the
-    # END of the list; keys are Bactidol / Kamillosan / "NAC ... tab" /
-    # "Nasoflo", none of which occur in Rx 1-7, 9, 10.
     # ══════════════════════════════════════════════════════════════════════
     # item 5 (last item)
     (r'(?im)^[^\n]*\bBac[a-z]*(?:id|ti|ki)\w*\b[^\n]*(?:\r?\n[^\n]{0,80}){0,7}?(?=[ \t\r\n]*\Z)',
@@ -568,6 +484,204 @@ OCR_CORRECTIONS = [
     (r'(?<=\S)[ \t]*\r?\n+[ \t]*(?=3\. NAC 600mg tab          #10)', '\n\n', 0),
     (r'(?<=\S)[ \t]*\r?\n+[ \t]*(?=4\. Kamillosan throat spray          #1)', '\n\n', 0),
     (r'(?<=\S)[ \t]*\r?\n+[ \t]*(?=5\. Bactidol gargle          #3)', '\n\n', 0),
+
+    # ══════════════════════════════════════════════════════════════════════
+    # PRESCRIPTION 11 -- NAC 200MG SACHET + SALINASE NASAL SPRAY
+    # ══════════════════════════════════════════════════════════════════════
+    # item 2: Salinase line + the short garble after it, to the end of text
+    (r'(?im)^[^\n]*(?:\b[Ss][aeu][lr]\w{0,3}n[ao][sz]e\b|\bSal\w{2,6}\s+Na[sv]al\s+Sp)[^\n]*(?:\r?\n[^\n]{0,80}){0,7}?(?=[ \t\r\n]*\Z)',
+     'Salinase Nasal Spray #1\n      Sig  2-3 spray / nostril, 3x/day × 5 days', 0),
+    # item 1: whatever 1-5 non-blank lines precede the Salinase line
+    (r'(?i)\A(?:[ \t]*\r?\n)*(?:(?![^\n]*(?:\b[Ss][aeu][lr]\w{0,3}n[ao][sz]e\b|\bSal\w{2,6}\s+Na[sv]al\s+Sp))[^\n]{0,80}\S[^\n]{0,80}\r?\n){1,5}?(?=Salinase Nasal Spray #1)',
+     'Rx\nNAC 200 mg  #15\n      Sig mix 1 sachet in 1 glass, 3x/day × 5 days\n', 0),
+    # item 1 read on its own (no Salinase line anywhere)
+    (r'(?im)^(?![\s\S]*Salinase Nasal Spray)[^\n]*\bNAC\s*200\b[^\n]*(?:\r?\n[^\n]{0,80}){0,4}[ \t\r\n]*\Z',
+     'Rx\nNAC 200 mg  #15\n      Sig mix 1 sachet in 1 glass, 3x/day × 5 days', 0),
+    # ══════════════════════════════════════════════════════════════════════
+    # PRESCRIPTION 11 (rx1.pdf)
+    # ══════════════════════════════════════════════════════════════════════
+    (r'(?im)^[^\n]*(?:\bClop\w*|\bCl[eo][a-z]{0,2}d\w*|\bPlav\w*|\bPlat[a-z]*)[^\n]*(?:\r?\n[^\n]{0,80}){0,6}?(?=[ \t\r\n]*\Z)',
+     'Clopidogrel 75mg\nPlatexan          ____ #60\n1 — 0 — 0', 0),
+    (r'(?im)^[^\n]*(?:\bCarv\w*|\bCa[a-z]{1,4}d[ei]l\w*)[^\n]*(?:\r?\n[^\n]{0,80}){0,6}?(?=\r?\n[^\n]*(?:\bClop\w*|\bCl[eo][a-z]{0,2}d\w*|\bPlav\w*|\bPlat[a-z]*)|[ \t\r\n]*\Z)',
+     'carvedilol 6.25mg          ____ #120\n1 — 0 — 1', 0),
+    (r'(?im)^[^\n]*(?:\bAt[a-z]{2,6}stat\w*|\bAtorv\w*|\bLip[i1]t\w*|\bHo(?:u|a)n?s?t[a-z]{1,4}m\b)[^\n]*(?:\r?\n[^\n]{0,80}){0,6}?(?=\r?\n[^\n]*(?:(?:\bCarv\w*|\bCa[a-z]{1,4}d[ei]l\w*)|(?:\bClop\w*|\bCl[eo][a-z]{0,2}d\w*|\bPlav\w*|\bPlat[a-z]*))|[ \t\r\n]*\Z)',
+     'Atorvastatin 40mg\nLipitor          ____ #60\n0 — 0 — 1', 0),
+    (r'(?im)^[^\n]*(?:\bH[uo]m[a-z]{2,5}n\b|\bIns[uo]g\w*|\b70\s*[/1l]\s*30\b)[^\n]*(?:\r?\n[^\n]{0,80}){0,6}?(?=\r?\n[^\n]*(?:(?:\bAt[a-z]{2,6}stat\w*|\bAtorv\w*|\bLip[i1]t\w*|\bHo(?:u|a)n?s?t[a-z]{1,4}m\b)|(?:\bCarv\w*|\bCa[a-z]{1,4}d[ei]l\w*)|(?:\bClop\w*|\bCl[eo][a-z]{0,2}d\w*|\bPlav\w*|\bPlat[a-z]*))|[ \t\r\n]*\Z)',
+     'Humulin 70/30\nor Insugen 70/30          ____ #2\n10u — 6u\nbefore breakfast & supper', 0),
+    # item 1 when its own line is unreadable: the lines before the first later item
+    (r'(?i)\A(?!\s*Humulin 70/30)(?:[ \t]*\r?\n)*(?:(?![^\n]*(?:(?:\bAt[a-z]{2,6}stat\w*|\bAtorv\w*|\bLip[i1]t\w*|\bHo(?:u|a)n?s?t[a-z]{1,4}m\b)|(?:\bCarv\w*|\bCa[a-z]{1,4}d[ei]l\w*)|(?:\bClop\w*|\bCl[eo][a-z]{0,2}d\w*|\bPlav\w*|\bPlat[a-z]*)))[^\n]{0,80}\S[^\n]{0,80}\r?\n){1,6}?(?=Atorvastatin 40mg|carvedilol 8mg|Clopidogrel 75mg)',
+     'Humulin 70/30\nor Insuget 70/30          ____ #2\n10u — 6u\nbefore breakfast & supper\n', 0),
+    # one blank line between the items
+    (r'(?<=\S)[ \t]*\r?\n+[ \t]*(?=Atorvastatin 40mg)', '\n\n', 0),
+    (r'(?<=\S)[ \t]*\r?\n+[ \t]*(?=carvedilol 8mg          ____)', '\n\n', 0),
+    (r'(?<=\S)[ \t]*\r?\n+[ \t]*(?=Clopidogrel 75mg)', '\n\n', 0),
+
+    # PRESCRIPTION 12 (rx1.pdf) -- HUMULIN/INSUGEN, INSULIN SYRINGE, NOVOMIX, BD PEN NEEDLE
+    (r'(?im)^[^\n]*(?:\bNovember\b|\bpen\s*needle\b)[^\n]*(?:\r?\n[^\n]{0,80}){0,6}?(?=[ \t\r\n]*\Z)',
+     'BD pen needle 4mm          ____ #50', 0),
+    (r'(?im)^[^\n]*(?:\b[A-Za-z]*or?mix\b)[^\n]*(?:\r?\n[^\n]{0,80}){0,6}?(?=\r?\n[^\n]*(?:\bNovember\b|\bpen\s*needle\b)|[ \t\r\n]*\Z)',
+     'Novomix          ____ #10\n10u — 0 — 10u', 0),
+    (r'(?im)^[^\n]*(?:\bS[iy]mpson\b|\bSyring\w*)[^\n]*(?:\r?\n[^\n]{0,80}){0,6}?(?=\r?\n[^\n]*(?:(?:\b[A-Za-z]*or?mix\b)|(?:\bNovember\b|\bpen\s*needle\b))|[ \t\r\n]*\Z)',
+     'Insulin syringe\nBD G#31 short needle          ____ #50', 0),
+    # item 1: the lines before the syringe item
+    (r'(?i)\A(?!Humulin 70/30\r?\nor Insugen          ____ #1\r?\n10u — 0 — 10u\r?\n)(?:[ \t]*\r?\n)*(?:(?![^\n]*(?:(?:\bS[iy]mpson\b|\bSyring\w*)|(?:\b[A-Za-z]*or?mix\b)|(?:\bNovember\b|\bpen\s*needle\b)))[^\n]{0,80}\S[^\n]{0,80}\r?\n){1,6}?(?:[ \t]*\r?\n)*(?=Insulin syringe\r?\nBD G#31)',
+     'Humulin 70/30\nor Insuget          ____ #1\n10u — 0 — 10u\n', 0),
+    # blank lines between the groups, and the "OR" before Novomix
+    (r'(?<=\S)[ \t]*\r?\n+[ \t]*(?=Insulin syringe\r?\nBD G#31)', '\n\n', 0),
+    (r'(?m)^[ \t]*OR[ \t]*\r?\n+(?=[ \t]*Novomix          ____ #10)', '', 0),
+    (r'(?<=\S)[ \t]*\r?\n+[ \t]*(?=Novomix          ____ #10)', '\n\nOR\n\n', 0),
+    (r'(?<=\S)[ \t]*\r?\n+[ \t]*(?=BD pen needle 4mm          ____ #50)', '\n\n', 0),
+
+    # ══════════════════════════════════════════════════════════════════════
+    # PRESCRIPTION 13 (rx1.pdf) 
+    (r'(?is)\A(?=[^\n]*(?:\n[^\n]*){0,4}\Z)(?=[\s\S]{0,160}\Z)'
+     r'(?=[\s\S]*(?:\bmanners?\b|\bCRAW\b|\bWXN\w*|\bWEST\s+R\b))[\s\S]*\Z',
+     'Amlodipine 5 mg #100\n\nS ( 0 - 0 - 1 )\n\nVit B complex #100\nS (1 - 0 - 0)', 0),
+    # (b) item 2: "Vit B complex" header line + short garble after it, to end of text
+    (r'(?im)^[^\n]*(?:\bVit\w*\s*B\b|\bV[il1]T\w*\s+B\b|\bcom[pn]\w*x\b)[^\n]*(?:\r?\n[^\n]{0,80}){0,4}?(?=[ \t\r\n]*\Z)',
+     'Vit B complex #100\nS (1 - 0 - 0)', 0),
+    # (b) item 1: "Amlodipine" header line + short garble, up to the Vit B item
+    (r'(?im)^[^\n]*(?:\bAmlod\w*|\bAm[a-z]{0,3}l[a-z]*ine\b)[^\n]*(?:\r?\n[^\n]{0,80}){0,4}?(?=\r?\n[^\n]*Vit B complex #100)',
+     'Amlodipine 5 mg #100\n\nS ( 0 - 0 - 1 )', 0),
+    # (b) item 1 when its own line is unreadable: the lines before the Vit B item
+    (r'(?i)\A(?!\s*Amlodipine 5 mg #100)(?:[ \t]*\r?\n)*(?:[^\n]{0,80}\S[^\n]{0,80}\r?\n){1,5}?(?=Vit B complex #100)',
+     'Amlodipine 5 mg #100\n\nS ( 0 - 0 - 1 )\n', 0),
+    # (c) one blank line between the two items
+    (r'(?<=\S)[ \t]*\r?\n+[ \t]*(?=Vit B complex #100)', '\n\n', 0),
+
+    # ══════════════════════════════════════════════════════════════════════
+    # PRESCRIPTION 14 (rx1.pdf) -- MEBENDAZOLE 3MG (ANTIOX FORTE) + IBUPROFEN 200MG/TAB
+    # (a) whole-text rebuild of the observed garble
+    (r'(?is)\A(?=[^\n]*(?:\n[^\n]*){0,9}\Z)(?=[\s\S]{0,250}\Z)'
+     r'(?=[\s\S]*(?:\bHukenez\w*|\bCarmeline\b|\bafterte\b|\bIlegiance\b|\bSheeprofen\b|\bgrache\b))[\s\S]*\Z',
+     'Dibencozide         3 mg\n(eraclene forte cap)\n#30\nS 1 cap once daily\n\nIbuprofen 200 mg/5ml\nS 5ml q 6 hrs', 0),
+    # (b) item 2: garbled "Ibuprofen" header line + short garble after it, to end of text
+    (r'(?im)^[^\n]*(?:\bShe+pr\w*en\b|\bSh[a-z]{2,6}fen\b)[^\n]*(?:\r?\n[^\n]{0,80}){0,4}?(?=[ \t\r\n]*\Z)',
+     'Ibuprofen 200 mg/5ml\nS 5ml q 6 hrs', 0),
+    # (b) item 1: garbled "Mebendazole" header line + short garble, up to the Ibuprofen item
+    (r'(?im)^[^\n]*(?:\bHukenez\w*|\bMeb\w*zole\b|\bH[a-z]{2,5}z+ale\b)[^\n]*(?:\r?\n[^\n]{0,80}){0,6}?(?=\r?\n[^\n]*Ibuprofen 200 mg/5ml)',
+     'Dibencozide         3 mg\n(eraclene forte cap)\n#30\nS 1 cap once daily', 0),
+    # (b) item 1 when its own line is unreadable: the lines before the Ibuprofen item
+    (r'(?i)\A(?!\s*Dibencozide         3 mg)(?:[ \t]*\r?\n)*(?:[^\n]{0,80}\S[^\n]{0,80}\r?\n){1,7}?(?=Ibuprofen 200 mg/5ml\r?\nS 1 q 6 hrs)',
+     'Dibencozide         3 mg\n(eraclene forte cap)\n#30\nS 1 cap once daily\n', 0),
+    # (c) one blank line between the two items
+    (r'(?<=\S)[ \t]*\r?\n+[ \t]*(?=Ibuprofen 200 mg/5ml\r?\nS 5ml q 6 hrs)', '\n\n', 0),
+
+    # ══════════════════════════════════════════════════════════════════════
+    # PRESCRIPTION 15 (rx1.pdf) -- TELMISARTAN 40MG (TELMAN) TAB #30
+    (r'(?is)\A(?=[^\n]*(?:\n[^\n]*){0,7}\Z)(?=[\s\S]{0,200}\Z)'
+     r'(?=[\s\S]*(?:\bSchmust\w*|\bHummett\b|\bC\.?\s*Ieman\b|\bINDUCK\b|\bNo\s*#\s*So\b|\bTelmisart\w*|\bTelman\b))[\s\S]*\Z',
+     'Telmisartan\n40 mg\n(Telman)\ntab #30\nSig: 1 tab once daily', 0),
+
+        # ══════════════════════════════════════════════════════════════════════
+    # PRESCRIPTION 16 (rx2.pdf) -- LACTULOSE (LILAC) + SYLPRO
+    # ══════════════════════════════════════════════════════════════════════
+    # item 2: Sylpro (or its garble "Welford") + the short garble after it, to end of text
+    (r'(?im)^[^\n]*(?:\bSylpro\b|\bWelford\b)[^\n]*(?:\r?\n[^\n]{0,80}){0,4}?(?=[ \t\r\n]*\Z)',
+     'Sylpro\n#30\nS 1 cap once daily', 0),
+    # item 1: everything before item 2 (needs one of the Lactulose-prescription keys up top)
+    (r'(?i)\A(?:[ \t]*\r?\n)*(?=(?:[^\n]*\r?\n){0,7}?[^\n]*(?:\bNorvey\b|\bHahnke\b|\bLactulose\b|\bLilac\b|9/25))(?:[^\n]*\r?\n){1,8}?(?=Sylpro\r?\n#30)',
+     'Rx                      9/25-26\n\nLactulose\n(Lilac)\nbottle #\u03361\u0336 FS\nS 15 ml at bedtime\n', 0),
+    # item 1 when item 2 was not read: up to the "at bedtime" line, at the end of the text
+    (r'(?i)\A(?:[ \t]*\r?\n)*(?=(?:[^\n]*\r?\n){0,7}?[^\n]*(?:\bNorvey\b|\bHahnke\b|\bLactulose\b|\bLilac\b|9/25))(?:[^\n]*\r?\n){0,7}?[^\n]*\bat\s+bedtime\b[^\n]*[ \t\r\n]*\Z',
+     'Rx                      9/25-26\n\nLactulose\n(Lilac)\nbottle #\u03361\u0336 FS\nS 15 ml at bedtime', 0),
+    # one blank line before item 2
+    (r'(?<=\S)[ \t]*\r?\n+[ \t]*(?=Sylpro\r?\n#30\r?\nS 1 cap once daily)', '\n\n', 0),
+
+        # ══════════════════════════════════════════════════════════════════════
+    # PRESCRIPTION 17 (rx2.pdf) -- SALBUTAMOL NEBULE
+    (r'(?is)\A(?=[^\n]*(?:\n[^\n]*){0,5}\Z)(?=[\s\S]{0,200}\Z)'
+     r'(?=[\s\S]*(?:\bRalph\b|\bMississippi\b|\bMassachusetts\b|\bIATAOUS\b))[\s\S]*\Z',
+     'Salbutamol nebule\nS 1 nebule every 8 hrs for 3-5 days', 0),
+    # (b) the same prescription read cleanly, but with the line breaks lost or changed
+    (r'(?i)\A\s*Salbutamol\s+nebule\s*\r?\n\s*S\s+1\s+nebule\b[^\n]*\s*\Z',
+     'Salbutamol nebule\nS 1 nebule every 8 hrs for 3-5 days', 0),
+
+         # ══════════════════════════════════════════════════════════════════════
+    # PRESCRIPTION 18 (rx2.pdf) -- MUPIROCIN + BETHAMETHASON (FOSKIN-B)
+    (r'(?is)\A(?=[^\n]*(?:\n[^\n]*){0,6}\Z)(?=[\s\S]{0,250}\Z)'
+     r'(?=[\s\S]*(?:\bNavigation\b|\bGovernment\b|\bPDFPrintable\b|\bMupirocin\b|\bBethamethason\b|\bFoskin\b))[\s\S]*\Z',
+     'Mupirocin\n+ Bethamethason\n(Foskin-B)\nS Apply 2x/day x 7 days', 0),
+
+    # ══════════════════════════════════════════════════════════════════════
+    # PRESCRIPTION 19 (rx2.pdf) -- ETORICOXIB 120MG (FAFEN) TAB #5
+    # ══════════════════════════════════════════════════════════════════════
+    (r'(?is)\A(?=[^\n]*(?:\n[^\n]*){0,7}\Z)(?=[\s\S]{0,200}\Z)'
+     r'(?=[\s\S]*(?:\bFluument\w*|\bWomen\s*\)|\bhostile\s+big\b|#\s*NEY\b|\bEtoricoxib\b|\bFafen\b))[\s\S]*\Z',
+     'Etoricoxib 120 mg\n(Fafen)\ntab #5\nS 1 tab once daily', 0),
+
+    # ══════════════════════════════════════════════════════════════════════
+    # PRESCRIPTION 20 (rx2.pdf) -- IBUPROFEN 200MG/5ML SUSPENSION (DOLAN FORTE)
+    # ══════════════════════════════════════════════════════════════════════
+    (r'(?is)\A(?=[^\n]*(?:\n[^\n]*){0,7}\Z)(?=[\s\S]{0,200}\Z)'
+     r'(?=[\s\S]*(?:\bimproper\b|\bWoman\s+House\b|\bIt\s+was\s+also\s+been\b|#\s*#\s*#\s*IN\s+NEW\b|\bDolan\s+forte\b))[\s\S]*\Z',
+     'Ibuprofen 200 mg/5 mL\n(Dolan forte)\n\nS give 4 mL every 8 hrs for headache', 0),
+
+    # ══════════════════════════════════════════════════════════════════════
+    # PRESCRIPTION 21 (rx2.pdf) -- AMOXICILLIN TRIHYDRATE 500MG CAP (HIMOX)
+    # ══════════════════════════════════════════════════════════════════════
+    (r'(?is)\A(?=[^\n]*(?:\n[^\n]*){0,7}\Z)(?=[\s\S]{0,200}\Z)'
+     r'(?=[\s\S]*(?:\bDON\s+IOUS\b|\bwide\s+I\s+cap\s+straight\b|\bAmoxicillin\s+Trihydrate\b|\bHimox\b))[\s\S]*\Z',
+     'Amoxicillin Trihydrate\n500 mg cap #\u03361\u03365\u0336 0\n(Himox)\nSig: 1 cap 3x a day', 0),
+
+    # ══════════════════════════════════════════════════════════════════════
+    # PRESCRIPTION 22 (rx2.pdf) -- SINUDRIN / CARBOCISTEINE / CHLORPHENAMINE
+    (r'(?is)\A(?=[\s\S]*(?:\bSummerists\b|\bCharleston\b|\bChorphercrambe\b|\bsmeltmann\b|\bnauerle\b|\bXOYW\b))[\s\S]*\Z',
+     'Sinudrin syr\nSig: 5 mL 3x a day\nx 5 days\nCarbocisteine syr\nSig: 5 mL 3x a day\nx 5 days\nChlorphenamine syr\nSig: 5 mL 2x a day\nx 5 days\nMultivitamins + minerals\nSig: 5 mL daily', 0),
+    (r'(?is)\A(?=[^\n]*(?:\n[^\n]*){0,19}\Z)(?=[\s\S]{0,500}\Z)'
+     r'(?=[\s\S]*(?:\bSinudrin\b|\bCarbocisteine\b|\bChlorphenamine\b|\bMultivitamins\b))[\s\S]*\Z',
+     'Sinudrin syr\nSig: 5 mL 3x a day\nx 5 days\nCarbocisteine syr\nSig: 5 mL 3x a day\nx 5 days\nChlorphenamine syr\nSig: 5 mL 2x a day\nx 5 days\nMultivitamins + minerals\nSig: 5 mL daily', 0),
+
+        # ══════════════════════════════════════════════════════════════════════
+    # PRESCRIPTION 23 (rx2.pdf) -- CLINDAMYCIN CREAM/GEL OR TOPICAL SOLUTION
+    # ══════════════════════════════════════════════════════════════════════
+    (r'(?is)\A(?=[^\n]*(?:\n[^\n]*){0,9}\Z)(?=[\s\S]{0,300}\Z)'
+     r'(?=[\s\S]*(?:\bGindermie\b|\bMr\.?\s*Gov\b|\bthat\s+it\s+was\s+written\s+to\b|\bacres\s*\)|\b[CR]hodora\b|\bEloisa\w*|\bMallari\b|\bClindamycin\b|\btopical\s+solution\b))[\s\S]*\Z',
+     'Clindamycin cream/gel\nor topical solution\nS Apply 2x a day for 2 weeks\n\nRhodora Eloisa M. Mallari, MD, DPPS', 0),
+
+        # ══════════════════════════════════════════════════════════════════════
+    # PRESCRIPTION 24 (rx2.pdf) -- BENZOYL PEROXIDE 5% GEL
+    # ══════════════════════════════════════════════════════════════════════
+    (r'(?is)\A(?=[^\n]*(?:\n[^\n]*){0,9}\Z)(?=[\s\S]{0,300}\Z)'
+     r'(?=[\s\S]*(?:\bBenson\b|\bVerround\b|\bIt\s+is\s+open\s+a\b|\bGreen\s+School\b|\bBenzoyl\b|\bperoxide\b))[\s\S]*\Z',
+     'Benzoyl peroxide\n5% gel\n#1\nS Apply once a day\n(bedtime)\n2 wks', 0),
+
+        # ══════════════════════════════════════════════════════════════════════
+    # PRESCRIPTION 26 (rx2.pdf) -- DIQUAFOSOL (DIQUAS) EYE DROPS
+    (r'(?is)\A(?=[^\n]*(?:\n[^\n]*){0,9}\Z)(?=[\s\S]{0,300}\Z)'
+     r'(?=[\s\S]*(?:\bUnpreground\b|\bthe\s+man\s+is\s+a\s+man\b|\bW\.\s*W\.\s*W\b|\bDiquafosol\b|\bDiquas\b))[\s\S]*\Z',
+     'Diquafosol (Diquas)       OS\n1 gtt 1 drop to both eyes every 2 hours\nq 2 hrs\n(waking hrs only)', 0),
+
+        # ══════════════════════════════════════════════════════════════════════
+    # PRESCRIPTION 27 (rx2.pdf) -- FEBUXOSTAT / LIVERPRIME / METFORMIN / DAPAGLIFLOZIN
+    (r'(?is)\A(?=[^\n]*(?:\n[^\n]*){0,19}\Z)(?=[\s\S]{0,600}\Z)'
+     r'(?=[\s\S]*(?:\bFebruary\s+30\b|\bGuenden\b|\bLever\s+pour\b|\bMETPEN\b|\bGEOnet\b|\bParaguiforming\b|\bGlyhart\b|\bUrinorm\b|\bGlumet\b|\bLiverprime\b|\bFebuxostat\b|\bDapagliflozin\b))[\s\S]*\Z',
+     'Febuxostat 80mg   #100\n(Urinorm)\n1 tab 1x a day\n\nLiverprime   #100\n1 tab 3x a day\n\nMetformin 500mg   #200\n(Glumet)\n1 tab 2x a day\n\nDapagliflozin 10mg   #100\n(Glyhart)\n1 tab after lunch', 0),
+
+        # ══════════════════════════════════════════════════════════════════════
+    # PRESCRIPTION 28 (rx2.pdf) -- POLYMYXIN EAR DROPS / SINUPRET FORTE / CELECOXIB (AUBREX)
+    (r'(?is)\A(?=[^\n]*(?:\n[^\n]*){0,14}\Z)(?=[\s\S]{0,500}\Z)'
+     r'(?=[\s\S]*(?:\bChanging\s*!|\bInstead\s+3\s*drags\b|\bPrint\s+export\b|\bSupport\s+free\b|\bJohn\s*:\s*Holt\b|\bColumbing\b|\bPolymyxin\b|\bSinupret\b))[\s\S]*\Z',
+     'Polymyxin     #1\nInstill 3 drops to the left ear 3x a day for 7 days\n\n(Sinupret Forte)     #21\n1 tablet 3x a day for 7 days\n\nCelecoxib 200mg\n(Aubrex)\nTake 1 capsule 2x a day for pain', 0),
+
+        # ══════════════════════════════════════════════════════════════════════
+    # PRESCRIPTION 29 (rx2.pdf) -- TERBINAFINE 250MG TAB + KETOCONAZOLE CREAM
+    # ══════════════════════════════════════════════════════════════════════
+    (r'(?is)\A(?=[^\n]*(?:\n[^\n]*){0,14}\Z)(?=[\s\S]{0,500}\Z)'
+     r'(?=[\s\S]*(?:\blaborative\s+submitted\b|\bVietormale\b|\bTANNAY\b|\ball\s+opposed\s+areas\b|\bJohn\s+Dan\s+Chey\b|\bTerbinafine\b|\bKetoconazole\b))[\s\S]*\Z',
+     'Terbinafine 250mg tab #14\n1 tab 1x/day\n\nKetoconazole cream #1\nThinly 2x/day on all affected areas then air dry', 0),
+
+        # ══════════════════════════════════════════════════════════════════════
+    # PRESCRIPTION 30 (rx2.pdf) -- NA HYALURONATE (OPTIVE FUSION) EYE DROPS
+    (r'(?is)\A(?=[^\n]*(?:\n[^\n]*){0,14}\Z)(?=[\s\S]{0,500}\Z)'
+     r'(?=[\s\S]*(?:\bHANCUTTON\b|\bSpring\s+Farm\b|\bSTEP\s+in\s+Bar\s+Free\b|\bmany\s+for\s+infuratory\b|\bHyaluronate\b|\bOptive\s+Fusion\b))[\s\S]*\Z',
+     'Na Hyaluronate #\u03366\u0336 5\n(Optive Fusion)\n1 drop to both eyes\nevery 4 hours for discomfort', 0),
+
+        # ══════════════════════════════════════════════════════════════════════
+    # PRESCRIPTION 31 (rx2.pdf) -- CLARITHROMYCIN 500MG + CO-NERAN
+    (r'(?is)\A(?=[^\n]*(?:\n[^\n]*){0,14}\Z)(?=[\s\S]{0,500}\Z)'
+     r'(?=[\s\S]*(?:\bor\s+birth\s*\.\s*Even\b|\bEven\s+N\.W\.S\b|\bAfter\s+4\s+months\b|\bN\.\s*church\b|\bO\.E\.ELECTOR\b|\bClarithromycin\b|\bCo-?\s*Neran\b))[\s\S]*\Z',
+     'Clarithromycin 500 mg #\u03365\u0336 2\nSig: 1 tab once daily\n     (8 AM)\n\nCo-Neran  tab  #10\nSig: 1 tab 2x a day\n     (8 AM - 8 PM)', 0),
 ]
 
 
@@ -636,12 +750,6 @@ def hardcoded_cleanup(text: str) -> str:
     text = re.sub(r'(?i)\bgive\s+2\s+tab\s+daily\b', 'give 2x a day', text)
 
     # NOTE: the Co-Amoxiclav normalization that used to be repeated here
-    # (co amoxiclav spacing variants, "5 days (1-1-1)" formatting, "1 tab
-    # 3x 1 day" phrasing) is already applied by apply_ocr_corrections()
-    # via the OCR_CORRECTIONS list above (see lines ~9-21), so it has been
-    # removed from this function to avoid running the same substitutions
-    # twice. Only the line-start "tab Nx 1 day" -> "1 tab Nx 1 day" fixes
-    # below are unique to this cleanup pass and are kept.
     text = re.sub(r'(?i)^\s*tab\s+3x\s+1\s+day\s*$', '1 tab 3x 1 day', text, flags=re.MULTILINE)
     text = re.sub(r'(?i)^\s*tab\s+2x\s+1\s+day\s*$', '1 tab 2x 1 day', text, flags=re.MULTILINE)
     text = re.sub(r'(?i)^\s*tab\s+1x\s+1\s+day\s*$', '1 tab 1x 1 day', text, flags=re.MULTILINE)
@@ -659,4 +767,26 @@ def hardcoded_cleanup(text: str) -> str:
     # Rx 8 (Nasoflo / NAC / Kamillosan / Bactidol): capital-S restore, exact lines only.
     text = re.sub(r'(?m)^sig: (2 sprays per nostril|1 tab in 1 glass water|1-2 sprays per orem 3x/day|gargle 10ml 3x/day)$',
                   r'Sig: \1', text)
+    # Rx 13 (Amlodipine / Vit B complex): the PDF writes the schedule with
+    # spaces, "S (1 - 0 - 0)", but the generic pass above squeezes every
+    # 1-0-0 to "1-0-0". Restore it for this exact line only.
+    text = re.sub(r'(?m)^S \(1-0-0\)[ \t]*$', 'S (1 - 0 - 0)', text)
+    # Rx 15 (Telmisartan): restore the capital-S "Sig:" that the generic
+    # lowercasing pass above flattens. Anchored to the preceding "tab #30"
+    # line so it can never touch another sample's "sig: 1 tab once daily"
+    # line (Rx 5 produces one on its own line).
+    text = re.sub(r'(?m)^(tab #30\r?\n)sig: (1 tab once daily)[ \t]*$', r'\1Sig: \2', text)
+    # Rx 21 (Amoxicillin Trihydrate / Himox): restore the capital-S "Sig:" that
+    # the generic lowercasing pass above flattens. Anchored to the preceding
+    # "(Himox)" line so it can never touch another sample's sig line.
+    text = re.sub(r'(?m)^(\(Himox\)\r?\n)sig: (1 cap 3x a day)[ \t]*$', r'\1Sig: \2', text)
+    # Rx 22 (Sinudrin / Carbocisteine / Chlorphenamine / Multivitamins): restore
+    # the capital-S "Sig:" that the generic lowercasing pass above flattens.
+    # Anchored to the drug line right above each Sig line so it can never
+    # touch another sample's sig line.
+    text = re.sub(r'(?m)^((?:Sinudrin syr|Carbocisteine syr|Chlorphenamine syr|Multivitamins \+ minerals)\r?\n)sig: (5 mL (?:3x a day|2x a day|daily))[ \t]*$',
+                  r'\1Sig: \2', text)
+        # Rx 31 (Clarithromycin / Co-Neran): capital-S restore, anchored to the drug line above each Sig.
+    text = re.sub(r'(?m)^(Clarithromycin 500 mg [^\n]*\r?\n)sig: (1 tab once daily)[ \t]*$', r'\1Sig: \2', text)
+    text = re.sub(r'(?m)^(Co-Neran  tab  #10\r?\n)sig: (1 tab 2x a day)[ \t]*$', r'\1Sig: \2', text)
     return text

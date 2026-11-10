@@ -79,6 +79,23 @@ body {
   cursor: not-allowed;
 }
 
+.text-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.text-actions .btn {
+  flex: 1;
+}
+
+.text-actions .icon-btn {
+  flex: 0 0 42px;
+  min-width: 42px;
+  padding: 8px 12px;
+  font-size: 18px;
+  line-height: 1;
+}
+
 /* ---------------- Side menu (permanent) ---------------- */
 .side-menu {
   position: sticky;

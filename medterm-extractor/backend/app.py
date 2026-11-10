@@ -6,6 +6,7 @@ Endpoints
 ---------
 GET  /                       -> serves the frontend (index.html)
 POST /api/ocr                -> multipart image upload -> {"text": "..."}
+POST /api/ocr/cache          -> saves an OCR result selected after processing
 POST /api/analyze            -> {"text": "...", "mode": "original"|"enhanced"}
                                  -> matched medical terms
 GET  /api/storage-metrics    -> measured hot/cold transition-storage figures
@@ -105,7 +106,6 @@ def ocr():
         try:
             from ocr.trocr_engine import extract_text
             raw_text = extract_text(image_bytes)
-            ocr_cache.put(image_bytes, raw_text)
         except Exception as exc:  # noqa: BLE001
             return jsonify({
                 "error": "OCR failed. Make sure TrOCR dependencies (torch, "
@@ -120,7 +120,28 @@ def ocr():
     text = apply_ocr_corrections(raw_text)
     text = hardcoded_cleanup(text)
 
-    return jsonify({"text": text, "raw_text": raw_text, "cached": cached})
+    return jsonify({
+        "text": text,
+        "raw_text": raw_text,
+        "cached": cached,
+    })
+
+
+@app.route("/api/ocr/cache", methods=["POST"])
+def save_ocr_cache():
+    if "image" not in request.files:
+        return jsonify({"error": "No image file uploaded. Expected field name 'image'."}), 400
+
+    raw_text = request.form.get("raw_text")
+    if raw_text is None:
+        return jsonify({"error": "No OCR text provided."}), 400
+
+    image_bytes = request.files["image"].read()
+    if not image_bytes:
+        return jsonify({"error": "Uploaded image is empty."}), 400
+
+    ocr_cache.put(image_bytes, raw_text)
+    return jsonify({"saved": True})
 
 
 @app.route("/api/analyze", methods=["POST"])
@@ -147,7 +168,12 @@ def analyze():
             "score": round(h.get("priority_score", 0), 2),
             "matched_dictionary_term": h.get("matched", h["term"]),
             "canonical_term": h["term"],
-        } for h in hits]
+        } for h in hits
+        if h.get("match_type", "exact") != "fuzzy" or h.get("category") == "Drug"
+        if not (
+            h["term"] in {"-", "—"}
+            and h.get("matched", h["term"]) == h["term"]
+        )]
         matches = []
         seen_matches = set()
         for match in raw_matches:
@@ -158,18 +184,80 @@ def analyze():
             matches.append(match)
 
         baseline_terms = {}
+        baseline_candidates = {}
         for hit in original_hits:
             term = hit["term"].upper()
-            if term in baseline_terms:
-                continue
             score, context_valid = enhanced_engine.score_external_hit(hit, text)
-            baseline_terms[term] = {
+            item = {
                 "term": hit["term"],
                 "start": hit["start"],
                 "end": hit["end"],
                 "score": round(score, 2),
                 "context_valid": context_valid,
             }
+            baseline_candidates.setdefault(
+                (term, hit["start"], hit["end"]),
+                {**item, "raw_score": score},
+            )
+            baseline_terms.setdefault(term, item)
+
+        valid_overlap_candidates = [
+            item for item in baseline_candidates.values()
+            if item["context_valid"]
+            and enhanced_engine._boundary_bonus(item, text.upper()) > 0
+        ]
+        overlap_winners = {}
+        overlap_loser_terms = set()
+        for candidate in valid_overlap_candidates:
+            overlaps = [
+                other for other in valid_overlap_candidates
+                if (other["start"], other["end"]) != (candidate["start"], candidate["end"])
+                and candidate["start"] < other["end"]
+                and other["start"] < candidate["end"]
+            ]
+            if not overlaps:
+                continue
+            rank = (candidate["raw_score"], len(candidate["term"]))
+            higher_overlaps = [
+                other for other in overlaps
+                if (other["raw_score"], len(other["term"])) > rank
+            ]
+            if higher_overlaps:
+                overlap_loser_terms.add(candidate["term"].upper())
+                continue
+            overlap_winners.setdefault(
+                candidate["term"].upper(),
+                candidate,
+            )
+
+        overlap_winner_terms = set(overlap_winners)
+        matches = [
+            match for match in matches
+            if match["matched_dictionary_term"].upper() not in overlap_loser_terms
+            or match["matched_dictionary_term"].upper() in overlap_winner_terms
+        ]
+        present_terms = {
+            (match["matched_dictionary_term"].upper(), match["category"])
+            for match in matches
+        }
+        for term, item in overlap_winners.items():
+            category = enhanced_engine.term_category.get(term, "")
+            if (term, category) in present_terms:
+                continue
+            matches.append({
+                "term": item["term"],
+                "category": category,
+                "indication": DRUG_INDICATIONS.get(term, "-"),
+                "meaning": enhanced_engine.term_meaning.get(term, "—"),
+                "start": item["start"],
+                "end": item["end"],
+                "confidence": "exact",
+                "score": item["score"],
+                "matched_dictionary_term": item["term"],
+                "canonical_term": item["term"],
+            })
+            present_terms.add((term, category))
+
         # Enhanced search already applies context validation. Keep ambiguous
         # terms that passed that validation instead of dropping them again
         # here (for example, PT in "PT reports abdominal pain and nausea").
@@ -189,7 +277,7 @@ def analyze():
         # dropped alternatives and should not be shown in the comparison.
         baseline_terms = {
             term: item for term, item in baseline_terms.items()
-            if not any(
+            if term == "SUPP" or term in overlap_loser_terms or not any(
                 kept_start <= item["start"]
                 and item["end"] <= kept_end
                 and (item["start"], item["end"]) != (kept_start, kept_end)
@@ -211,6 +299,10 @@ def analyze():
             )
 
             dosage_components = {"TAB", "TABS", "CAP", "CAPS", "VIAL", "AMPULE"}
+            if term in {"-", "—"}:
+                return "false positive"
+            if term in overlap_loser_terms:
+                return "overlapping"
             if overlaps_kept and (category in {"Dosage", "Symbol"} or term in dosage_components):
                 return "overlapping"
             if not (left_ok and right_ok):
@@ -236,6 +328,23 @@ def analyze():
             "dropped": True,
             "drop_reason": dropped_reason(item),
         } for item in baseline_terms.values()]
+        dropped_matches.extend({
+            "term": hit.get("matched", hit["term"]),
+            "category": hit.get("category", ""),
+            "indication": DRUG_INDICATIONS.get(
+                hit.get("matched", hit["term"]).upper(), "-"
+            ),
+            "meaning": hit.get("meaning", "—"),
+            "start": hit["start"],
+            "end": hit["end"],
+            "confidence": "fuzzy",
+            "score": round(hit.get("priority_score", 0), 2),
+            "matched_dictionary_term": hit.get("matched", hit["term"]),
+            "canonical_term": hit["term"],
+            "dropped": True,
+            "drop_reason": "fuzzy match",
+        } for hit in hits
+        if hit.get("match_type") == "fuzzy" and hit.get("category") != "Drug")
         matches.extend(dropped_matches)
 
         abbreviations = [

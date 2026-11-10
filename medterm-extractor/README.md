@@ -65,7 +65,11 @@ medterm-extractor/
 OCR results are also cached locally in `backend/ocr_cache.sqlite3` using the
 SHA-256 hash of each uploaded image. Re-uploading the same image reuses its
 raw OCR result immediately, while the current OCR correction rules still
-run on every request. The cache database is ignored by Git. 4. Run the server:
+run on every request. After a new image is processed, the app asks whether
+its OCR result should be saved; choosing **No** leaves the local cache
+unchanged. The cache database is ignored by Git.
+
+4. Run the server:
 
 ```bash
 python app.py

@@ -2,6 +2,7 @@ term,category,meaning
 BIOGESIC,Drug,
 PARACETAMOL,Drug,
 AMOXICILLIN,Drug,
+AMOXICILLIN TRIHYDRATE,Drug,
 AMOXICILLIN CLAVULANATE,Drug,
 CO-AMOXICLAV,Drug,
 CO AMOXICLAV,Drug,
@@ -56,7 +57,6 @@ AMOXICILLIN-CLAVULANATE,Drug,
 SULFAMETHOXAZOLE,Drug,
 TRIMETHOPRIM,Drug,
 AUGMENTIN,Drug,
-CURAM,Drug,
 CLAVAM,Drug,
 TEMPRA,Drug,
 CALPOL,Drug,
@@ -87,6 +87,7 @@ GLIBENCLAMIDE,Drug,
 GLIMEPIRIDE,Drug,
 FOLIC ACID,Drug,
 VITAMIN B COMPLEX,Drug,
+VIT B COMPLEX,Drug,
 B-COMPLEX,Drug,
 N-ACETYL CYSTEINE,Drug,
 N-ACETYL,Drug,
@@ -191,6 +192,7 @@ INDAPAMIDE,Drug,
 DIGOXIN,Drug,
 ROSUVASTATIN,Drug,
 CLOPIDOGREL,Drug,
+PLATEXAN,Drug,
 WARFARIN,Drug,
 HEPARIN,Drug,
 ENOXAPARIN,Drug,
@@ -253,6 +255,7 @@ PNSS,Drug,
 D5W,Drug,
 D5NSS,Drug,
 LACTATED RINGERS SOLUTION,Drug,
+TOPICAL SOLUTION,Drug,
 PLAIN LR,Drug,
 D5LR,Drug,
 D50W,Drug,
@@ -663,8 +666,36 @@ WARFARIN SODIUM,Drug,
 ZIPRASIDONE HYDROCHLORIDE,Drug,
 ZIPRASIDONE MESYLATE,Drug,
 DELANDISTROGENE MOXEPARVOVEC,Drug,
+CO-NERANTAB,Drug,
+DIQUAFOSOL,Drug,
+DIQUAS,Drug,
+DIBENCOZIDE,Drug,
+DOLAN FORTE,Drug,
+FOSKINA-B,Drug,
+GLYHART,Drug,
+GLUMET,Drug,
+HERACLENE FORTE,Drug,
+INSUGET,Drug,
+LILAC,Drug,
+LIVERPRIME,Drug,
+NOVOMIX,Drug,
+OPTIVE FUSION,Drug,
+POLYMYXIN,Drug,
+SINUDRIN,Drug,
+SINUPRET FORTE,Drug,
+SODIUM HYALURONATE,Drug,
+NA HYALURONATE,Drug,
+SYLPRO,Drug,
+TELMAN,Drug,
+FAFEN,Drug,
+URINORM,Drug,
 
 NEBULE,Dosage,
+70/30,Dosage,
+6.25MG,Dosage,
+10U,Dosage,
+6U,Dosage,
+1 GTT,Dosage,
 10MG/TAB,Dosage,
 625MG,Dosage,
 600MG,Dosage,
@@ -1635,8 +1666,11 @@ THREE TIMES A DAY,Frequency,
 3X DAILY,Frequency,
 TWICE DAILY,Frequency,
 ONCE DAILY,Frequency,
+DAILY,Frequency,
 EVERY 8 HOURS,Frequency,
+EVERY 8 HRS,Frequency,
 EVERY 6 HOURS,Frequency,
+6 HRS,Frequency,
 EVERY 12 HOURS,Frequency,
 EVERY DAY,Frequency,
 AS NEEDED,Frequency,
@@ -1648,6 +1682,7 @@ AS NEEDED FOR PAIN,Frequency,
 FOR 7 DAYS,Frequency,
 FOR 5 DAYS,Frequency,
 FOR 3 DAYS,Frequency,
+3-5 DAYS,Frequency,
 SEVEN DAYS,Frequency,
 5 DAYS,Frequency,
 7 DAYS,Frequency,
@@ -1657,6 +1692,7 @@ SEVEN DAYS,Frequency,
 2X A DAY,Frequency,
 4X A DAY,Frequency,
 2X/DAY,Frequency,
+2 WKS,Frequency,
 2 WEEKS,Frequency,
 PER NOSTRIL,Frequency,
 BOTH NOSTRILS,Frequency,
@@ -1682,6 +1718,7 @@ ON AN EMPTY STOMACH,Frequency,
 IN THE MORNING,Frequency,
 IN THE EVENING,Frequency,
 BEFORE BREAKFAST,Frequency,
+BEFORE BREAKFAST & SUPPER,Frequency,
 AFTER BREAKFAST,Frequency,
 BEFORE LUNCH,Frequency,
 AFTER LUNCH,Frequency,
@@ -1845,7 +1882,7 @@ SUSP,Abbreviation,Suspension
 SUPP,Abbreviation,Suppository
 OINT,Abbreviation,Ointment
 SOL,Abbreviation,Solution
-GTT,Abbreviation,Drops
+GTT,Abbreviation,"Drops (guttae; drop unit, commonly used for eye or ear drops)"
 AMP,Abbreviation,Ampule
 VIAL,Abbreviation,Small sealed drug container
 ELIX,Abbreviation,Elixir
@@ -1869,6 +1906,7 @@ DVT,Abbreviation,Deep vein thrombosis
 PE,Abbreviation,Pulmonary embolism
 PNA,Abbreviation,Pneumonia
 FBS,Abbreviation,Fasting blood sugar
+FS,Abbreviation,Fully Served
 LFT,Abbreviation,Liver function test
 RFT,Abbreviation,Renal/kidney function test
 KFT,Abbreviation,Renal/kidney function test
@@ -1876,6 +1914,7 @@ ECG,Abbreviation,Electrocardiogram
 EKG,Abbreviation,Electrocardiogram
 CXR,Abbreviation,Chest X-ray
 USG,Abbreviation,Ultrasonography
+U/S,Abbreviation,Ultrasound (ultrasonography)
 ABG,Abbreviation,Arterial blood gas
 ESR,Abbreviation,Erythrocyte sedimentation rate
 CRP,Abbreviation,C-reactive protein
@@ -1887,6 +1926,7 @@ PMH,Abbreviation,Past medical history
 FH,Abbreviation,Family history
 SH,Abbreviation,Social history
 O/E,Abbreviation,On examination
+O/S,Abbreviation,Left eye (oculus sinister)
 C/O,Abbreviation,Complains of
 NAD,Abbreviation,No abnormality detected
 WNL,Abbreviation,Within normal limits
@@ -1915,6 +1955,7 @@ AOG,Abbreviation,Age of gestation / Gestational age
 GA,Abbreviation,Age of gestation / Gestational age
 UTI,Abbreviation,Urinary tract infection
 SIG,Abbreviation,Directions for use
+S,Symbol,Directions for use
 NAC,Abbreviation,N-Acetylcysteine
 COLD COMPRESS,Treatment,
 WARM COMPRESS,Treatment,
@@ -2055,6 +2096,8 @@ URINE CULTURE,Treatment,
 1-1-0,Symbol,Morning-Afternoon; take 1 tablet twice a day
 0-0-0,Symbol,Do not take
 #,Symbol,Total quantity to dispense
+Q,Symbol,Every or each
+NA,Symbol,Sodium
 -,Symbol,Take 1 tablet before/after meal/s
 •,Symbol,Take 1 tablet before/after meal/s
 —,Symbol,Take 1 tablet before/after meal/s

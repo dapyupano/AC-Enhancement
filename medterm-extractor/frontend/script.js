@@ -4,6 +4,7 @@ const SHARED_TEXT_KEY = "medtermExtractorText";
 const state = {
   mode: "original", // "original" | "enhanced"
   selectedFile: null,
+  pendingCacheText: null,
 };
 
 // ---------------------------- element refs --------------------------------
@@ -17,6 +18,9 @@ const previewImg = document.getElementById("previewImg");
 const scanBtn = document.getElementById("scanBtn");
 const scanBtnLabel = document.getElementById("scanBtnLabel");
 const scanSpinner = document.getElementById("scanSpinner");
+const saveCacheBtn = document.getElementById("saveCacheBtn");
+const cacheSaveBtnLabel = document.getElementById("cacheSaveBtnLabel");
+const cacheSaveSpinner = document.getElementById("cacheSaveSpinner");
 
 const textInput = document.getElementById("textInput");
 const evaluateBtn = document.getElementById("evaluateBtn");
@@ -108,6 +112,8 @@ function handleFile(file) {
     return;
   }
   state.selectedFile = file;
+  state.pendingCacheText = null;
+  saveCacheBtn.hidden = true;
   scanBtn.disabled = false;
 
   // Browsers can't render HEIC/HEIF natively, so skip preview for those formats
@@ -143,8 +149,11 @@ scanBtn.addEventListener("click", async () => {
       method: "POST",
       body: formData,
     });
+
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "OCR request failed.");
+    state.pendingCacheText = data.cached ? null : (data.raw_text || "");
+    saveCacheBtn.hidden = data.cached;
     textInput.value = data.text || "";
     if (textInput.value.trim())
       sessionStorage.setItem(SHARED_TEXT_KEY, textInput.value);
@@ -155,6 +164,31 @@ scanBtn.addEventListener("click", async () => {
     showError(err.message);
   } finally {
     setBusy(scanBtn, scanSpinner, scanBtnLabel, false, "Scan &amp; Extract");
+  }
+});
+
+saveCacheBtn.addEventListener("click", async () => {
+  if (!state.selectedFile || state.pendingCacheText === null) return;
+  setBusy(saveCacheBtn, cacheSaveSpinner, cacheSaveBtnLabel, true, "Saving…");
+  clearError();
+
+  const cacheFormData = new FormData();
+  cacheFormData.append("image", state.selectedFile);
+  cacheFormData.append("raw_text", state.pendingCacheText);
+
+  try {
+    const res = await fetch(`${API_BASE}/api/ocr/cache`, {
+      method: "POST",
+      body: cacheFormData,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Saving OCR result failed.");
+    state.pendingCacheText = null;
+    saveCacheBtn.hidden = true;
+  } catch (err) {
+    showError(err.message);
+  } finally {
+    setBusy(saveCacheBtn, cacheSaveSpinner, cacheSaveBtnLabel, false, "↓");
   }
 });
 
@@ -553,6 +587,7 @@ function setBusy(btn, spinner, label, busy, busyText) {
 // store default labels once
 scanBtnLabel.dataset.default = scanBtnLabel.innerHTML;
 evalBtnLabel.dataset.default = evalBtnLabel.innerHTML;
+cacheSaveBtnLabel.dataset.default = cacheSaveBtnLabel.innerHTML;
 saveBtnLabel.dataset.default = saveBtnLabel.innerHTML;
 
 function hideResults() {

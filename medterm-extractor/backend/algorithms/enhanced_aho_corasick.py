@@ -4,7 +4,7 @@ from collections import deque
 
 # Shared storage constants.
 # Full transition alphabet.
-FULL_ALPHABET = tuple("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,-/%()+:#\u2022\u2014")
+FULL_ALPHABET = tuple("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,-/%()+:#&\u2022\u2014")
 
 # Used for storage estimates.
 CELL_BYTES = 8
@@ -260,7 +260,7 @@ class EnhancedAhoCorasick:
         if has_separate_macron:
             T = re.sub(r"\bA\b", "Ā", T)
         # Keep dictionary symbols and abbreviation separators.
-        T = re.sub(r"[^\w\s#•—\u0304-]", " ", T)
+        T = re.sub(r"[^\w\s#•—\u0304&.-]", " ", T)
         T = re.sub(r"\s+", " ", T).strip()
         # Restore three-part frequency shorthand.
         T = re.sub(r"(?i)\b([01])\s+([01])\s+([01])\b", r"\1-\2-\3", T)
@@ -492,6 +492,17 @@ class EnhancedAhoCorasick:
                 score += self._known_term_bonus(hit["term"])
                 score += self._context_bonus(hit.get("context_valid", True))
                 hit["priority_score"] = min(score / 4.0, 1.0)
+
+        exact_spans = {
+            (hit["start"], hit["end"])
+            for hit in output
+            if hit.get("match_type") == "exact"
+        }
+        output = [
+            hit for hit in output
+            if hit.get("match_type") == "exact"
+            or (hit["start"], hit["end"]) not in exact_spans
+        ]
 
         # Keep the highest-priority non-overlapping matches.
         import bisect
